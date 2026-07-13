@@ -1,6 +1,7 @@
 /**
  * ArenaFlow Pro — Routing & Graph Pathfinder
  * Handles seat-to-gate pathfinding with dynamic node blocking (hazard rerouting).
+ * Caches standard routes during boot-up to ensure optimal performance.
  */
 
 "use strict";
@@ -56,17 +57,37 @@ const Router = {
   // Dynamic set of currently blocked nodes (e.g. spilled zones, medical emergency blocks)
   blockedNodes: new Set(),
 
+  // Cached paths standard lookup (Security/Efficiency optimization: avoids double computation)
+  cachedStandardPaths: {},
+
+  /**
+   * Initializes the router, pre-calculating standard shortest paths.
+   */
+  init() {
+    const blocks = ['Block-102', 'Block-104', 'Block-212'];
+    const gates = ['Gate-A', 'Gate-B', 'Gate-C', 'Gate-D'];
+    const accessibilityStates = [true, false];
+
+    for (const start of blocks) {
+      for (const end of gates) {
+        for (const stepFree of accessibilityStates) {
+          const cacheKey = `${start}_${end}_${stepFree}`;
+          const route = this.findStandardShortestPath(start, end, stepFree);
+          this.cachedStandardPaths[cacheKey] = route.path;
+        }
+      }
+    }
+    console.log('[ROUTER] Static standard paths cache preloaded.');
+  },
+
   /**
    * Scans active store incidents and locks/blocks corresponding nodes.
-   * @param {Array} incidents - List of incidents from State.
    */
   updateBlockedNodes(incidents) {
     this.blockedNodes.clear();
     
-    // Audit active incidents
     for (const inc of incidents) {
       if (inc.status !== 'Resolved' && (inc.severity === 'Medium' || inc.severity === 'High')) {
-        // Match incident location to graph node IDs (e.g., "Stairwell-3" or "Block-104")
         const matchingNode = this.GraphData.nodes.find(
           n => n.id.toLowerCase() === inc.location.toLowerCase() ||
                n.label.toLowerCase().includes(inc.location.toLowerCase())
@@ -82,6 +103,7 @@ const Router = {
   /**
    * Dijkstra Single-Source Shortest Path.
    * Routes around active hazards (blockedNodes) and filters by accessibility constraints.
+   * If the startNodeId itself has a hazard, permits movement outward from that node (so fans can escape).
    */
   findShortestPath(startNodeId, targetNodeId, accessibleOnly = false) {
     const nodes = this.GraphData.nodes.map(n => n.id);
@@ -107,9 +129,19 @@ const Router = {
         continue; // Filter stairs in step-free mode
       }
       
-      // If either node is blocked, we cannot traverse this edge
-      if (this.blockedNodes.has(edge.from) || this.blockedNodes.has(edge.to)) {
-        continue; // Reroute around active security/maintenance hazard
+      // Check hazard blocks
+      // Do not block edges if they are connected to startNodeId (so fans can escape a blocked start block!)
+      const isStartNodeInvolved = (edge.from === startNodeId || edge.to === startNodeId);
+      if (!isStartNodeInvolved) {
+        if (this.blockedNodes.has(edge.from) || this.blockedNodes.has(edge.to)) {
+          continue; 
+        }
+      } else {
+        // If the startNodeId is involved, we check if the OTHER endpoint is blocked
+        const otherNode = edge.from === startNodeId ? edge.to : edge.from;
+        if (this.blockedNodes.has(otherNode)) {
+          continue; // Cannot route into another blocked area even when escaping
+        }
       }
 
       adjList[edge.from].push({ node: edge.to, weight: edge.weight });
@@ -129,7 +161,7 @@ const Router = {
       }
 
       if (minNode === targetNodeId) {
-        break; // Target node reached
+        break;
       }
 
       remaining.delete(minNode);
@@ -145,7 +177,6 @@ const Router = {
       }
     }
 
-    // Reconstruct path array
     const path = [];
     let current = targetNodeId;
     while (current !== null) {
@@ -157,16 +188,17 @@ const Router = {
       return { path: [], distance: Infinity, rerouted: false };
     }
 
-    // Determine if we had to reroute (i.e. did standard shortest path differ from this one?)
-    // Standard checks standard path ignoring hazard blocks
-    const standardRoute = this.findStandardShortestPath(startNodeId, targetNodeId, accessibleOnly);
-    const rerouted = standardRoute.path.join(',') !== path.join(',');
+    // Determine if we had to reroute by comparing with the static preloaded cache
+    const cacheKey = `${startNodeId}_${targetNodeId}_${accessibleOnly}`;
+    const standardPath = this.cachedStandardPaths[cacheKey] || [];
+    const rerouted = standardPath.join(',') !== path.join(',');
 
     return { path, distance: distances[targetNodeId], rerouted };
   },
 
   /**
    * Helper to compute standard route (ignores hazard blocks) for comparison metrics.
+   * Runs only once per block-gate combination at boot-up.
    */
   findStandardShortestPath(startNodeId, targetNodeId, accessibleOnly) {
     const nodes = this.GraphData.nodes.map(n => n.id);

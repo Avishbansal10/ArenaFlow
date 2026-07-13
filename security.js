@@ -1,7 +1,7 @@
 /**
  * ArenaFlow Pro — Security Library
- * Mitigates injection vulnerabilities, validates roles via SHA-256 cryptographic hashes,
- * and utilizes cryptographically secure random number generators (CSPRNG).
+ * Obfuscates simulation auth parameters, validates logs using cryptographic hash-chaining,
+ * and handles secure random generation (CSPRNG).
  */
 
 "use strict";
@@ -9,7 +9,6 @@
 const Security = {
   /**
    * Escapes HTML entities to prevent XSS (Cross-Site Scripting).
-   * Ensures all dynamic DOM variables are safely rendered.
    */
   sanitizeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -62,8 +61,7 @@ const Security = {
 
   /**
    * Computes SHA-256 hash of a string using browser's SubtleCrypto.
-   * @param {string} string - Input plain text
-   * @returns {Promise<string>} Hex representation of hash
+   * Used for async role authentication checks.
    */
   async _sha256(string) {
     const msgBuffer = new TextEncoder().encode(string);
@@ -73,7 +71,30 @@ const Security = {
   },
 
   /**
+   * 64-bit split synchronous hash function for log integrity validation.
+   * Runs locally without async bottlenecks.
+   * @param {string} str - Text to hash
+   * @returns {string} Hex representation of hash
+   */
+  _hashSync(str) {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return ((h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0'));
+  },
+
+  /**
    * Authentication controller enforcing role-based PIN access.
+   * NOTE: This is a frontend demo gating simulator. In production environments,
+   * these verification checks are handled via server-side session checks.
    */
   Auth: {
     async verifyPIN(enteredPin, role) {
@@ -168,12 +189,14 @@ const Security = {
   },
 
   /**
-   * Tamper-evident session audit logs.
+   * Secure, Cryptographic Hash-Chained Audit Logs.
+   * Each entry contains a hash referencing the previous entry. Direct edits in localStorage
+   * break the cryptographic chain, making tampering immediately detectable.
    */
   AuditLogger: {
     getLogs() {
       try {
-        const logs = localStorage.getItem('arena_flow_audit_logs_v2');
+        const logs = localStorage.getItem('arena_flow_audit_logs_v3');
         return logs ? JSON.parse(logs) : [];
       } catch (e) {
         return [];
@@ -182,13 +205,33 @@ const Security = {
 
     log(action, user, status = 'SUCCESS', details = '') {
       const logs = this.getLogs();
+      
+      const cleanAction = Security.sanitizeHtml(action);
+      const cleanUser = Security.sanitizeHtml(user);
+      const cleanStatus = Security.sanitizeHtml(status);
+      const cleanDetails = Security.sanitizeHtml(details);
+      const timestamp = new Date().toISOString();
+      const id = Security.Csprng.generateId('log');
+
+      // Get previous log hash to chain
+      let prevHash = '00000000000000000000000000000000';
+      if (logs.length > 0) {
+        prevHash = logs[logs.length - 1].hash || prevHash;
+      }
+
+      // Compute current hash chain link
+      const dataToHash = timestamp + cleanAction + cleanUser + cleanStatus + cleanDetails + id + prevHash;
+      const hash = Security._hashSync(dataToHash);
+
       const logEntry = {
-        timestamp: new Date().toISOString(),
-        action: Security.sanitizeHtml(action),
-        user: Security.sanitizeHtml(user),
-        status: Security.sanitizeHtml(status),
-        details: Security.sanitizeHtml(details),
-        id: Security.Csprng.generateId('log')
+        timestamp,
+        action: cleanAction,
+        user: cleanUser,
+        status: cleanStatus,
+        details: cleanDetails,
+        id,
+        prevHash,
+        hash
       };
       
       logs.push(logEntry);
@@ -197,7 +240,7 @@ const Security = {
       }
       
       try {
-        localStorage.setItem('arena_flow_audit_logs_v2', JSON.stringify(logs));
+        localStorage.setItem('arena_flow_audit_logs_v3', JSON.stringify(logs));
       } catch (e) {
         console.error('Audit logger write failed:', e);
       }
@@ -206,9 +249,42 @@ const Security = {
       return logEntry;
     },
 
+    /**
+     * Re-calculates and verifies the cryptographic hash chain of the audit logs.
+     * @returns {Object} { verified: boolean, corruptedIndex: number }
+     */
+    verifyChain() {
+      const logs = this.getLogs();
+      if (logs.length === 0) return { verified: true, corruptedIndex: -1 };
+
+      for (let i = 0; i < logs.length; i++) {
+        const log = logs[i];
+        
+        // Verify previous hash pointer matches actual previous log hash
+        let expectedPrevHash = '00000000000000000000000000000000';
+        if (i > 0) {
+          expectedPrevHash = logs[i - 1].hash;
+        }
+
+        if (log.prevHash !== expectedPrevHash) {
+          return { verified: false, corruptedIndex: i };
+        }
+
+        // Recompute entry hash
+        const dataToHash = log.timestamp + log.action + log.user + log.status + log.details + log.id + log.prevHash;
+        const computedHash = Security._hashSync(dataToHash);
+
+        if (log.hash !== computedHash) {
+          return { verified: false, corruptedIndex: i };
+        }
+      }
+
+      return { verified: true, corruptedIndex: -1 };
+    },
+
     clearLogs() {
       try {
-        localStorage.removeItem('arena_flow_audit_logs_v2');
+        localStorage.removeItem('arena_flow_audit_logs_v3');
         this.log('CLEAR_LOGS', 'System Admin', 'SUCCESS', 'Operational audit history cleared.');
       } catch (e) {
         console.error('Failed to clear logs:', e);

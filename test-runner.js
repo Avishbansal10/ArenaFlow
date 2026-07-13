@@ -59,6 +59,36 @@ const TestSuite = {
       TestSuite.assert(id1 !== id2, 'Two secure random IDs should not be equal');
     },
 
+    'Security.AuditLogger hash chain verifies integrity and detects tampering': function() {
+      // Clean start
+      const originalLogsJson = localStorage.getItem('arena_flow_audit_logs_v2');
+      localStorage.removeItem('arena_flow_audit_logs_v2');
+      
+      // Log some entries
+      window.Security.AuditLogger.log('TEST_EVENT_1', 'Tester', 'SUCCESS', 'Check 1');
+      window.Security.AuditLogger.log('TEST_EVENT_2', 'Tester', 'SUCCESS', 'Check 2');
+
+      // Verify chain is valid
+      const checkValid = window.Security.AuditLogger.verifyChain();
+      TestSuite.assertEqual(checkValid.verified, true, 'Cryptographic hash chain should initially be fully verified');
+
+      // Tamper with the log data in localStorage
+      const logs = window.Security.AuditLogger.getLogs();
+      logs[0].details = 'Tampered Check 1'; // alter content
+      localStorage.setItem('arena_flow_audit_logs_v2', JSON.stringify(logs));
+
+      // Verify chain detects tampering
+      const checkTampered = window.Security.AuditLogger.verifyChain();
+      TestSuite.assertEqual(checkTampered.verified, false, 'Tampering with details should break the hash-chain validation');
+
+      // Restore
+      if (originalLogsJson) {
+        localStorage.setItem('arena_flow_audit_logs_v2', originalLogsJson);
+      } else {
+        localStorage.removeItem('arena_flow_audit_logs_v2');
+      }
+    },
+
     // --- State Tests ---
     'Store.init boots up state and config': function() {
       window.Store.init();

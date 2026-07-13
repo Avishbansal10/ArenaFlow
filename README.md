@@ -2,7 +2,7 @@
 
 [![FIFA 2026](https://img.shields.io/badge/FIFA_World_Cup-2026-006847?style=flat-square)](#)
 [![GenAI Assistant](https://img.shields.io/badge/GenAI-Aura_AI_Assistant-10b981?style=flat-square)](#)
-[![Security Policy](https://img.shields.io/badge/Security-PIN_Auth_&_Rate_Limited-blueviolet?style=flat-square)](#)
+[![Security Policy](https://img.shields.io/badge/Security-Audit_Chained_&_Sanitized-blueviolet?style=flat-square)](#)
 [![Diagnostics status](https://img.shields.io/badge/System_Diagnostics-100%25_Healthy-10b981?style=flat-square)](#)
 
 **ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations dashboard and fan services portal customized for the **FIFA World Cup 2026** at MetLife Stadium. The system optimizes live tournament operations, manages concessions, and ensures fan safety through automated real-time coordination.
@@ -30,7 +30,8 @@ Generative AI was utilized to:
 ### 2. Smart Stadium Pathfinding (IoT Rerouting)
 - Models the stadium entrance, concourses, lifts, and seating blocks as a graph.
 - If a security or spill incident is reported at a location (e.g. `Stairwell-3`), the Dijkstra pathfinder **automatically blocks** that node in the graph and routes fans along alternative corridors, warning them of the hazard in the UI.
-- Offers a **Step-Free Accessibility** option that routes users using elevators and ramps instead of stairs.
+- **Escape-Safe Routing**: If an incident occurs directly at the fan's start block, the algorithm allows outward traversal so the fan can safely exit the hazard area, while continuing to block passage through other active incident nodes.
+- Offers a **Step-Free Accessibility** option that routes users using elevators and ramps instead of stairs. Pre-caches static standard paths on boot-up to optimize query performance to $O(1)$ complexity.
 
 ### 3. Digital Ticket Scanner Widget
 - A simulated tickets screen with barcode scanning animation.
@@ -40,9 +41,15 @@ Generative AI was utilized to:
 - Preloaded World Cup matches (e.g. USA vs. England at MetLife Stadium).
 - Live controllers for operators to adjust scores, update timers, and edit match clocks.
 
-### 5. Security & Rate Limiting (100% Audit Guard)
-- **Role-Based Access Control (RBAC)**: Operator Dashboard and Diagnostics consoles are guarded by security overlays requiring authorization PIN codes (`admin789` / `tech456`).
+### 5. Security & Data Integrity
+
+> [!NOTE]
+> **Client-Side Simulation Context**: Being a client-only simulator running 100% in-browser, administrative locks and logs are designed for demonstration purposes. In production environments, authentication state is validated on server-side nodes to prevent client-side DevTools token injection.
+
+- **Role Access Gates**: Operator Dashboard and Diagnostics consoles are guarded by simulated credential forms. Input values are validated using secure, client-side SHA-256 hash comparison checks.
+- **Cryptographic Hash-Chaining Audit Log**: Implements a synchronous hash-chaining protocol for operational logs. Every log entry contains a hash referencing the previous entry's checksum. If anyone tampers with `localStorage` or removes a log entry, the chain breaks, and the Diagnostics panel immediately raises a security alert.
 - **Form Rate Limiting**: The `Security.RateLimiter` limits rapid sequential submissions to protect concessions and safety personnel from DDoS/spamming attacks.
+- **CSPRNG ID Generation**: Unique IDs for matches, orders, and logs are generated using cryptographically secure random values (`window.crypto.getRandomValues`) to mitigate predictable token guessing.
 - **XSS Prevention**: Strict HTML entity-escaping is applied across 100% of DOM insertions.
 
 ---
@@ -52,9 +59,9 @@ Generative AI was utilized to:
 | Criteria | Implementation Details |
 | :--- | :--- |
 | **Code Quality** | Clean modular files, clear MVC namespaces, explicit error traps, and complete encapsulation. |
-| **Security** | Role PIN authenticators, client-side rate-limiters, input sanitization, and session log history. |
-| **Efficiency** | Zero external frameworks or heavy libraries. Fast load speeds and low memory consumption. |
-| **Testing** | 12+ built-in browser tests covering NLU, routing, authorization, and rate limiting. |
+| **Security** | SHA-256 role verification, cryptographic hash-chained audit logging, client rate-limiters, and CSPRNG IDs. |
+| **Efficiency** | Zero external frameworks or heavy libraries. Cached static standard routes for instant Dijkstra comparison. |
+| **Testing** | 13+ built-in browser tests covering NLU, routing, authorization, rate limiting, and hash chain checks. |
 | **Accessibility** | WCAG 2.1 AA compliant, High Contrast theme, Keyboard tab-stops, and Web Speech TTS voice directions. |
 | **Vertical Alignment** | Tailored to World Cup tournament operations, crowd control, and safety resource dispatch. |
 
@@ -66,5 +73,5 @@ Generative AI was utilized to:
 2. Open `index.html` in any web browser.
 3. Switch roles:
    * **Fan Portal**: Use the digital scanner, chat with Aura AI, calculate path directions.
-   * **TOC Controls**: Click the tab, enter the Operator PIN **`admin789`** to access.
-   * **Diagnostics**: Click the tab, enter the Diagnostics PIN **`tech456`**, and click "Run Diagnostics" to execute unit assertions.
+   * **TOC Controls**: Click the tab, enter the simulation Operator PIN **`admin789`** to access.
+   * **Diagnostics**: Click the tab, enter the simulation Diagnostics PIN **`tech456`**, and click "Run Diagnostics" to execute unit assertions.

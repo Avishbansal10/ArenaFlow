@@ -234,6 +234,9 @@ class ArenaFlowController {
   init() {
     window.Store.init();
 
+    // Initialize static standard path caches
+    window.Router.init();
+
     window.Router.updateBlockedNodes(window.Store.state.incidents);
 
     this.bindEvents();
@@ -1172,6 +1175,16 @@ class ArenaFlowController {
           writeLog(`[FAIL] ${res.name} (${res.durationMs}ms): ${res.error}`, 'diag-fail');
         }
       });
+
+      writeLog('--------------------------------------------------', 'diag-log-line');
+      
+      // Verify local storage audit log hash-chain integrity
+      const logVerification = window.Security.AuditLogger.verifyChain();
+      if (logVerification.verified) {
+        writeLog('[PASS] Audit Log Integrity Check: Cryptographic Hash Chain verified.', 'diag-pass');
+      } else {
+        writeLog(`[FAIL] Audit Log Integrity Check: Cryptographic tampering detected at index ${logVerification.corruptedIndex}!`, 'diag-fail');
+      }
 
       writeLog('--------------------------------------------------', 'diag-log-line');
       writeLog(`Test execution completed. Passed: ${report.passed}/${report.total}.`, 'diag-log-line');

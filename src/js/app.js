@@ -485,6 +485,8 @@ class ArenaFlowController {
       if (selectBlock) selectBlock.value = 'Block-104';
       if (orderSeat) orderSeat.value = 'Block-104, Row G, Seat 9';
 
+      window.Store.incrementFansScanned();
+
       window.Store.addChatMessage('fan', 'user', '[Simulated Ticket Scan]');
       window.Store.addChatMessage('fan', 'aura', '🎟️ Ticket Verified! Welcome to MetLife Stadium. You are registered in Block 104. I have automatically configured your seat route. How can I assist you today?');
 
@@ -544,12 +546,38 @@ class ArenaFlowController {
     // Update Live Analytics Counters (Professional Touch: reacts to state mutations)
     const activeAlertsEl = document.getElementById('stat-active-alerts');
     const concessionOrdersEl = document.getElementById('stat-concession-orders');
+    const occupancyEl = document.getElementById('stat-occupancy');
+    const routesEl = document.getElementById('stat-active-routes');
+    const fansEl = document.getElementById('stat-fans-scanned');
+    const integrityEl = document.getElementById('stat-system-health');
     
     if (activeAlertsEl) {
       activeAlertsEl.textContent = state.incidents.filter(i => i.status !== 'Resolved').length;
     }
     if (concessionOrdersEl) {
       concessionOrdersEl.textContent = state.concessions.filter(o => o.status !== 'Delivered').length;
+    }
+    if (occupancyEl) {
+      const totalOccupancy = state.sensors.gates.reduce((sum, g) => sum + g.occupancy, 0);
+      const totalCapacity = state.sensors.gates.reduce((sum, g) => sum + g.capacity, 0);
+      const occupancyPercent = totalCapacity > 0 ? Math.round((totalOccupancy / totalCapacity) * 100) : 0;
+      occupancyEl.textContent = `${occupancyPercent}%`;
+    }
+    if (routesEl) {
+      routesEl.textContent = state.routesComputed.toLocaleString();
+    }
+    if (fansEl) {
+      fansEl.textContent = state.fansScanned.toLocaleString();
+    }
+    if (integrityEl) {
+      const logVerification = window.Security.AuditLogger.verifyChain();
+      if (logVerification.verified) {
+        integrityEl.textContent = "100% Chained";
+        integrityEl.style.color = "var(--text-primary)";
+      } else {
+        integrityEl.textContent = "Chain Fault!";
+        integrityEl.style.color = "var(--color-danger)";
+      }
     }
   }
 
@@ -990,6 +1018,8 @@ class ArenaFlowController {
 
       const result = window.Router.findShortestPath(startBlock, endGate, stepFree);
       const steps = window.Router.generateInstructions(result.path);
+
+      window.Store.incrementRoutesComputed();
 
       this.currentNavInstructions = steps.map(s => s.action).join('. ');
 

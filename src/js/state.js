@@ -117,7 +117,9 @@ const DEFAULT_STATE = {
   ],
   operatorChatHistory: [
     { sender: 'aura', text: 'TOC Operational Assistant active. Please authenticate using your security PIN to perform remote queries.' }
-  ]
+  ],
+  fansScanned: 41200,
+  routesComputed: 0
 };
 
 const Store = {
@@ -131,6 +133,8 @@ const Store = {
         this.state = JSON.parse(saved);
         if (!this.state.fanChatHistory) this.state.fanChatHistory = [...DEFAULT_STATE.fanChatHistory];
         if (!this.state.operatorChatHistory) this.state.operatorChatHistory = [...DEFAULT_STATE.operatorChatHistory];
+        if (!this.state.fansScanned) this.state.fansScanned = DEFAULT_STATE.fansScanned;
+        if (this.state.routesComputed === undefined) this.state.routesComputed = DEFAULT_STATE.routesComputed;
       } else {
         this.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
         this.save();
@@ -325,6 +329,16 @@ const Store = {
     if (this.state[historyKey].length > 100) {
       this.state[historyKey].shift();
     }
+    this.save();
+  },
+
+  incrementFansScanned() {
+    this.state.fansScanned++;
+    this.save();
+  },
+
+  incrementRoutesComputed() {
+    this.state.routesComputed++;
     this.save();
   }
 };

@@ -1,188 +1,207 @@
 /**
- * ArenaFlow Application Controller
- * Handles DOM orchestration, algorithmic pathfinding, view state toggling, and TTS speech synthesis.
+ * ArenaFlow Pro — Controller & Aura AI Assistant
+ * Orchestrates event handling, role authorizations, dynamic rerouting UI, and NLU parsing.
  */
 
-// --- Stadium Pathfinding Graph Definitions ---
-const GraphData = {
-  nodes: [
-    { id: 'Block-102', label: 'Seat Area Block 102', type: 'block' },
-    { id: 'Block-104', label: 'Seat Area Block 104', type: 'block' },
-    { id: 'Block-212', label: 'Seat Area Block 212', type: 'block' },
-    { id: 'Stairwell-3', label: 'Stairwell 3 (High-steep stairs)', type: 'stairs' },
-    { id: 'Stairwell-4', label: 'Stairwell 4 (Stairs)', type: 'stairs' },
-    { id: 'Elevator-East', label: 'Elevator East (Step-Free)', type: 'elevator' },
-    { id: 'Elevator-West', label: 'Elevator West (Step-Free)', type: 'elevator' },
-    { id: 'Main-Concourse-North', label: 'Main Concourse North level', type: 'concourse' },
-    { id: 'Main-Concourse-South', label: 'Main Concourse South level', type: 'concourse' },
-    { id: 'Gate-A', label: 'Gate A (North Entrance)', type: 'gate' },
-    { id: 'Gate-B', label: 'Gate B (South Entrance)', type: 'gate' },
-    { id: 'Gate-C', label: 'Gate C (East Entrance)', type: 'gate' },
-    { id: 'Gate-D', label: 'Gate D (West Entrance)', type: 'gate' }
-  ],
-  edges: [
-    // Block 102 connections
-    { from: 'Block-102', to: 'Stairwell-3', weight: 2, accessible: false },
-    { from: 'Block-102', to: 'Elevator-East', weight: 5, accessible: true }, // longer walk to elevator, but accessible
-    
-    // Block 104 connections
-    { from: 'Block-104', to: 'Stairwell-4', weight: 2, accessible: false },
-    { from: 'Block-104', to: 'Elevator-West', weight: 4, accessible: true },
-    
-    // Block 212 connections
-    { from: 'Block-212', to: 'Stairwell-4', weight: 3, accessible: false },
-    { from: 'Block-212', to: 'Elevator-West', weight: 6, accessible: true },
+// --- Aura AI Natural Language Parser (NLU) ---
+const AuraAI = {
+  /**
+   * Processes a natural language text query from a fan.
+   * @param {string} rawText - Message text
+   * @returns {string} Response text
+   */
+  processFanQuery(rawText) {
+    const text = rawText.toLowerCase().trim();
 
-    // Stairwells / Elevators to Concourses
-    { from: 'Stairwell-3', to: 'Main-Concourse-North', weight: 3, accessible: false },
-    { from: 'Elevator-East', to: 'Main-Concourse-North', weight: 2, accessible: true },
-    { from: 'Stairwell-4', to: 'Main-Concourse-South', weight: 3, accessible: false },
-    { from: 'Elevator-West', to: 'Main-Concourse-South', weight: 2, accessible: true },
+    // 1. Check for pathfinding queries
+    // e.g., "get from Block-102 to Gate-A", "route from block 104 to gate c"
+    if (text.includes('path') || text.includes('route') || text.includes('direction') || text.includes('get to') || text.includes('exit')) {
+      let startBlock = 'Block-102'; // default fallback
+      if (text.includes('102')) startBlock = 'Block-102';
+      else if (text.includes('104')) startBlock = 'Block-104';
+      else if (text.includes('212')) startBlock = 'Block-212';
 
-    // Concourse to Gates
-    { from: 'Main-Concourse-North', to: 'Gate-A', weight: 2, accessible: true },
-    { from: 'Main-Concourse-North', to: 'Gate-C', weight: 4, accessible: true },
-    
-    { from: 'Main-Concourse-South', to: 'Gate-B', weight: 2, accessible: true },
-    { from: 'Main-Concourse-South', to: 'Gate-D', weight: 5, accessible: true },
+      let endGate = 'Gate-A';
+      if (text.includes('gate a') || text.includes('gate-a')) endGate = 'Gate-A';
+      else if (text.includes('gate b') || text.includes('gate-b')) endGate = 'Gate-B';
+      else if (text.includes('gate c') || text.includes('gate-c')) endGate = 'Gate-C';
+      else if (text.includes('gate d') || text.includes('gate-d')) endGate = 'Gate-D';
 
-    // Inter-concourse backup link
-    { from: 'Main-Concourse-North', to: 'Main-Concourse-South', weight: 8, accessible: true }
-  ]
+      const stepFree = text.includes('step-free') || text.includes('accessible') || text.includes('elevator') || text.includes('lift') || text.includes('wheelchair');
+
+      // Call Pathfinder
+      const routeResult = window.Router.findShortestPath(startBlock, endGate, stepFree);
+      const instructions = window.Router.generateInstructions(routeResult.path);
+      
+      // Update Seating selector input values in the UI to match chatbot command
+      const selectBlock = document.getElementById('nav-start-block');
+      const selectGate = document.getElementById('nav-end-gate');
+      const toggleAccess = document.getElementById('nav-accessible-toggle');
+      if (selectBlock) selectBlock.value = startBlock;
+      if (selectGate) selectGate.value = endGate;
+      if (toggleAccess) toggleAccess.checked = stepFree;
+
+      // Update instructions on UI
+      window.AppController.renderPathOutput(instructions, routeResult.rerouted);
+
+      let response = `Calculated navigation route from ${startBlock} to ${endGate}. `;
+      if (stepFree) response += `Step-free elevator routing is active. `;
+      if (routeResult.rerouted) {
+        response += `⚠️ Notice: Due to an active hazard, I have rerouted you safely around blocked areas. `;
+      }
+      response += `Steps: ` + instructions.map((s, i) => `[${i+1}] ${s.action}`).join(' -> ');
+      return response;
+    }
+
+    // 2. Check for food ordering queries
+    // e.g., "order a burger to Block-104", "buy popcorn at block 102"
+    if (text.includes('order') || text.includes('burger') || text.includes('popcorn') || text.includes('nachos') || text.includes('food')) {
+      let seat = 'Block-104, Row G, Seat 9'; // default
+      // Match block in text
+      if (text.includes('102')) seat = 'Block-102, Row B, Seat 3';
+      else if (text.includes('212')) seat = 'Block-212, Row C, Seat 4';
+
+      let item = 'Double Cheese Burger Combo ($14)';
+      if (text.includes('popcorn')) item = 'Popcorn & Soda Combo ($10)';
+      else if (text.includes('nacho')) item = 'Nachos & Cheese Combo ($9)';
+
+      const order = window.Store.placeOrder(seat, item);
+      sessionStorage.setItem('last_placed_seat', seat);
+      
+      return `🍔 Order placed successfully! Your "${item}" has been registered. Order ID: #${order.id}. Delivery runner will bring it to ${seat}.`;
+    }
+
+    // 3. Check for incident reporting queries
+    // e.g., "report a spill at Block-102", "medical issue at stairwell 3"
+    if (text.includes('report') || text.includes('spill') || text.includes('hazard') || text.includes('medical') || text.includes('broken')) {
+      let location = 'Block-104';
+      if (text.includes('102')) location = 'Block-102';
+      else if (text.includes('212')) location = 'Block-212';
+      else if (text.includes('stairwell 3') || text.includes('stairwell-3')) location = 'Stairwell-3';
+      else if (text.includes('gate c') || text.includes('gate-c')) location = 'Gate-C';
+
+      let type = 'Spill';
+      if (text.includes('medical') || text.includes('hurt') || text.includes('dizzy')) type = 'Medical';
+      else if (text.includes('broken') || text.includes('seat')) type = 'Maintenance';
+      else if (text.includes('fight') || text.includes('security')) type = 'Security';
+
+      let desc = 'Safety issue reported via Aura AI Assistant.';
+      if (text.includes('water') || text.includes('soda')) desc = 'Water spill reported. Slip hazard.';
+
+      const inc = window.Store.reportIncident(type, location, desc, 'Medium');
+      return `🚨 Safety Ticket #${inc.id} created! Reported a "${type}" hazard at location: ${location}. Our stadium control room has dispatched a responder.`;
+    }
+
+    // Standard responses
+    if (text.includes('hello') || text.includes('hi') || text.includes('hey')) {
+      return "Hi there! I am Aura, your FIFA World Cup 2026 digital stadium assistant. How can I help you today? You can ask for directions (e.g. 'Route from Block 102 to Gate C'), order food, or report safety issues.";
+    }
+
+    if (text.includes('stadium') || text.includes('metlife') || text.includes('world cup')) {
+      return "Welcome to MetLife Stadium, hosting the FIFA World Cup 2026! We have advanced IoT gate tracking, accessible routes, and 4 gates (Gates A-D) open for your convenience.";
+    }
+
+    return "I didn't quite catch that. You can ask me for directions (e.g., 'route from Block 102 to Gate C step-free'), order concession sets, or report incident hazards like spills.";
+  },
+
+  /**
+   * Processes operational queries from stadium coordinators.
+   * @param {string} rawText - Message text
+   * @returns {string} Response text
+   */
+  processOperatorQuery(rawText) {
+    const text = rawText.toLowerCase().trim();
+
+    // Enforce administrative check
+    if (!window.Security.Auth.isAuthorized('operator')) {
+      // Check if user is attempting to enter PIN in chat
+      if (text.includes('pin:') || text.includes('pin ')) {
+        const pin = text.replace('pin:', '').replace('pin', '').trim();
+        const success = window.Security.Auth.verifyPIN(pin, 'operator');
+        if (success) {
+          window.AppController.renderAuthOverlay(); // update overlay
+          return "🔑 PIN Verified successfully! Administrative commands unlocked. You can now schedule games, check gate flows, or audit tickets.";
+        } else {
+          return "❌ Authentication failed. Incorrect PIN code entered.";
+        }
+      }
+      return "🔒 Operational clearance required. Please authorize by entering your PIN in the authentication popup or type 'PIN: [your_pin]' in chat.";
+    }
+
+    // 1. Handle match scheduling
+    if (text.includes('schedule') || text.includes('match') || text.includes('game')) {
+      // Simple parser: "schedule Germany vs Brazil"
+      let teamA = 'Germany';
+      let teamB = 'Brazil';
+      if (text.includes('usa') || text.includes('mexico')) {
+        teamA = 'USA';
+        teamB = 'Mexico';
+      }
+      
+      const newMatch = window.Store.addMatch({
+        sport: 'Football',
+        tournament: 'FIFA World Cup 2026',
+        venue: 'MetLife Stadium (NJ)',
+        time: '20:00',
+        date: new Date().toISOString().split('T')[0],
+        status: 'SCHEDULED',
+        teamA: { name: teamA, score: 0, color: '#3b82f6' },
+        teamB: { name: teamB, score: 0, color: '#ff4b4b' }
+      });
+      return `📅 Match Scheduled! Created match: ${newMatch.teamA.name} vs ${newMatch.teamB.name} at MetLife Stadium (ID: ${newMatch.id}).`;
+    }
+
+    // 2. Handle incident lists
+    if (text.includes('incident') || text.includes('alert') || text.includes('safety')) {
+      const openIncidents = window.Store.state.incidents.filter(i => i.status !== 'Resolved');
+      if (openIncidents.length === 0) {
+        return "✓ Security Status: Normal. There are currently no open/unresolved incident reports.";
+      }
+      return `🚨 Active Incidents (${openIncidents.length}): ` + 
+        openIncidents.map(i => `[#${i.id}] ${i.type} at ${i.location} (${i.severity} severity)`).join('; ');
+    }
+
+    // 3. Handle gate sensor flow rate queries
+    if (text.includes('gate') || text.includes('occupancy') || text.includes('flow')) {
+      let gateId = 'gate-c';
+      if (text.includes('gate a') || text.includes('gate-a')) gateId = 'gate-a';
+      else if (text.includes('gate b') || text.includes('gate-b')) gateId = 'gate-b';
+      else if (text.includes('gate d') || text.includes('gate-d')) gateId = 'gate-d';
+
+      const gate = window.Store.state.sensors.gates.find(g => g.id === gateId);
+      return `📊 Gate Report (${gate.name}): Occupancy: ${gate.occupancy}/${gate.capacity} (${(gate.occupancy/gate.capacity*100).toFixed(0)}%). Flow rate: ${gate.flowRate} fans/min. Alert status: ${gate.alert}.`;
+    }
+
+    if (text.includes('status') || text.includes('system')) {
+      return `⚙️ TOC Status Panel: System Online. Matches tracked: ${window.Store.state.matches.length}. Active incidents: ${window.Store.state.incidents.filter(i => i.status !== 'Resolved').length}. Concessions active: ${window.Store.state.concessions.filter(o => o.status !== 'Delivered').length}.`;
+    }
+
+    return "Operations Assistant: Command recognized but not understood. You can query gate statuses ('status of gate A'), check safety reports ('list incidents'), or schedule games.";
+  }
 };
 
-/**
- * Custom Dijkstra Pathfinding Algorithm.
- * Computes shortest path from start block to exit gate.
- * If accessibleOnly is true, filters out non-accessible (staircase) routes.
- */
-function findShortestPath(startNodeId, targetNodeId, accessibleOnly = false) {
-  const nodes = GraphData.nodes.map(n => n.id);
-  
-  // Initialize distances
-  const distances = {};
-  const previous = {};
-  const remaining = new Set(nodes);
-  
-  for (const node of nodes) {
-    distances[node] = Infinity;
-    previous[node] = null;
-  }
-  distances[startNodeId] = 0;
 
-  // Build adjacency list filtered by accessibility criteria
-  const adjList = {};
-  for (const node of nodes) {
-    adjList[node] = [];
-  }
-  
-  for (const edge of GraphData.edges) {
-    if (accessibleOnly && !edge.accessible) {
-      continue; // Skip inaccessible routes (stairs)
-    }
-    // Graph is bi-directional for navigation
-    adjList[edge.from].push({ node: edge.to, weight: edge.weight });
-    adjList[edge.to].push({ node: edge.from, weight: edge.weight });
-  }
-
-  while (remaining.size > 0) {
-    // Find node with minimum distance
-    let minNode = null;
-    for (const node of remaining) {
-      if (minNode === null || distances[node] < distances[minNode]) {
-        minNode = node;
-      }
-    }
-
-    if (minNode === null || distances[minNode] === Infinity) {
-      break;
-    }
-
-    if (minNode === targetNodeId) {
-      break; // Found target
-    }
-
-    remaining.delete(minNode);
-
-    // Relax edges
-    for (const neighbor of adjList[minNode]) {
-      if (!remaining.has(neighbor.node)) continue;
-      
-      const alt = distances[minNode] + neighbor.weight;
-      if (alt < distances[neighbor.node]) {
-        distances[neighbor.node] = alt;
-        previous[neighbor.node] = minNode;
-      }
-    }
-  }
-
-  // Reconstruct path
-  const path = [];
-  let current = targetNodeId;
-  while (current !== null) {
-    path.unshift(current);
-    current = previous[current];
-  }
-
-  if (path[0] !== startNodeId) {
-    return { path: [], distance: Infinity }; // No path available
-  }
-
-  return { path, distance: distances[targetNodeId] };
-}
-
-/**
- * Translates a path array of node IDs to human-readable step-by-step navigation instructions.
- */
-function generatePathInstructions(path, accessibleOnly) {
-  if (path.length === 0) {
-    return ["No route found under selected accessibility parameters. Please request immediate usher assistance."];
-  }
-
-  const steps = [];
-  for (let i = 0; i < path.length; i++) {
-    const node = GraphData.nodes.find(n => n.id === path[i]);
-    if (i === 0) {
-      steps.push({ node: node.label, action: `Start at your seating section: ${node.label}` });
-    } else {
-      const prevNode = GraphData.nodes.find(n => n.id === path[i-1]);
-      let verb = "Proceed to";
-      if (node.type === 'stairs') {
-        verb = "Go down the stairs via";
-      } else if (node.type === 'elevator') {
-        verb = "Proceed to the lift at";
-      } else if (node.type === 'gate') {
-        verb = "Arrive at exit terminal";
-      }
-      steps.push({ node: node.label, action: `${verb} ${node.label}` });
-    }
-  }
-  return steps;
-}
-
-
-// --- Main Application UI Controller ---
+// --- Controller class orchestrating UI & Events ---
 class ArenaFlowController {
   constructor() {
-    this.activeRole = 'fan'; // 'fan' or 'operator' or 'diagnostics'
-    this.selectedGateSensor = 'gate-c'; // heatmap detail focus
+    this.activeRole = 'fan'; 
+    this.selectedGateSensor = 'gate-c'; 
+    this.currentNavInstructions = '';
   }
 
   init() {
-    // Initialize central store
     window.Store.init();
 
-    // Bind event listeners
-    this.bindEvents();
+    // Synchronize initial graph state with reported incidents
+    window.Router.updateBlockedNodes(window.Store.state.incidents);
 
-    // Subscribe to state changes
+    this.bindEvents();
     window.Store.subscribe((state) => this.render(state));
 
-    // Initial render
     this.render(window.Store.state);
-    
-    // Log startup
-    window.Security.AuditLogger.log('SYSTEM_STARTUP', 'System Kernel', 'SUCCESS', 'ArenaFlow UI dashboard fully loaded.');
+    this.renderAuthOverlay();
+
+    window.Security.AuditLogger.log('SYSTEM_STARTUP', 'FIFA System Kernel', 'SUCCESS', 'ArenaFlow Pro dashboard fully activated.');
   }
 
   bindEvents() {
@@ -194,18 +213,18 @@ class ArenaFlowController {
       });
     });
 
-    // 2. High Contrast toggle
+    // 2. High Contrast button
     const btnContrast = document.getElementById('btn-toggle-contrast');
     if (btnContrast) {
       btnContrast.addEventListener('click', () => {
         document.body.classList.toggle('high-contrast');
         const isHc = document.body.classList.contains('high-contrast');
         btnContrast.setAttribute('aria-pressed', isHc);
-        window.Security.AuditLogger.log('TOGGLE_HIGH_CONTRAST', 'User', 'SUCCESS', `High contrast mode toggled to: ${isHc}`);
+        window.Security.AuditLogger.log('TOGGLE_HIGH_CONTRAST', 'User', 'SUCCESS', `High contrast active: ${isHc}`);
       });
     }
 
-    // 3. TTS Announcement Reader
+    // 3. TTS Reader
     const btnSpeak = document.getElementById('btn-tts-read');
     if (btnSpeak) {
       btnSpeak.addEventListener('click', () => {
@@ -213,7 +232,7 @@ class ArenaFlowController {
       });
     }
 
-    // 4. Seating Path Navigation Form
+    // 4. Pathfinder form
     const navForm = document.getElementById('routing-form');
     if (navForm) {
       navForm.addEventListener('submit', (e) => {
@@ -222,7 +241,7 @@ class ArenaFlowController {
       });
     }
 
-    // 5. Fan Order Food Form
+    // 5. Food Order form
     const orderForm = document.getElementById('concession-form');
     if (orderForm) {
       orderForm.addEventListener('submit', (e) => {
@@ -231,7 +250,7 @@ class ArenaFlowController {
       });
     }
 
-    // 6. Fan Report Incident Form
+    // 6. Fan incident ticket reporter
     const fanIncidentForm = document.getElementById('fan-incident-form');
     if (fanIncidentForm) {
       fanIncidentForm.addEventListener('submit', (e) => {
@@ -240,7 +259,7 @@ class ArenaFlowController {
       });
     }
 
-    // 7. Match Score Updates (Operator Panel)
+    // 7. Match scheduling form
     const schedulerForm = document.getElementById('operator-scheduler-form');
     if (schedulerForm) {
       schedulerForm.addEventListener('submit', (e) => {
@@ -249,7 +268,7 @@ class ArenaFlowController {
       });
     }
 
-    // 8. Heatmap dynamic node selector clicks
+    // 8. Gate sensor map click selectors
     document.querySelectorAll('.sensor-node').forEach(node => {
       node.addEventListener('click', (e) => {
         this.selectedGateSensor = e.target.getAttribute('data-sensor-id');
@@ -257,7 +276,7 @@ class ArenaFlowController {
       });
     });
 
-    // 9. Run Diagnostics Button
+    // 9. Diagnostics runner
     const btnDiagnostics = document.getElementById('btn-run-diagnostics');
     if (btnDiagnostics) {
       btnDiagnostics.addEventListener('click', () => {
@@ -265,7 +284,7 @@ class ArenaFlowController {
       });
     }
 
-    // 10. Clear Audit logs button
+    // 10. Audit logs clear
     const btnClearLogs = document.getElementById('btn-clear-audit-logs');
     if (btnClearLogs) {
       btnClearLogs.addEventListener('click', () => {
@@ -274,16 +293,67 @@ class ArenaFlowController {
       });
     }
 
-    // Listen to real-time audit log addition events
+    // 11. Role Login PIN submissions
+    const formLogin = document.getElementById('auth-pin-form');
+    if (formLogin) {
+      formLogin.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handlePinSubmit();
+      });
+    }
+
+    // 12. Ticket Scanner simulation button
+    const btnScan = document.getElementById('btn-scan-ticket');
+    if (btnScan) {
+      btnScan.addEventListener('click', () => {
+        this.simulateTicketScan();
+      });
+    }
+
+    // 13. Fan Chat submit
+    const fanChatForm = document.getElementById('fan-chat-form');
+    if (fanChatForm) {
+      fanChatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleChatSubmit('fan');
+      });
+    }
+
+    // 14. Operator Chat submit
+    const opChatForm = document.getElementById('operator-chat-form');
+    if (opChatForm) {
+      opChatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleChatSubmit('operator');
+      });
+    }
+
+    // Real-time audit updates
     window.addEventListener('auditlogadded', () => {
       this.renderAuditLogs();
     });
   }
 
   switchRole(role) {
+    // If attempting to access operator or diagnostics, verify authorization first
+    if ((role === 'operator' || role === 'diagnostics') && !window.Security.Auth.isAuthorized(role)) {
+      this.pendingRoleSwitch = role; // cache target role
+      this.activeRole = role; 
+      
+      // Update active nav styling
+      document.querySelectorAll('.role-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.getAttribute('data-role') === role) tab.classList.add('active');
+      });
+
+      this.renderAuthOverlay();
+      return;
+    }
+
     this.activeRole = role;
-    
-    // Toggle active classes on tab buttons
+    this.pendingRoleSwitch = null;
+
+    // Toggle nav active tags
     document.querySelectorAll('.role-tab').forEach(tab => {
       if (tab.getAttribute('data-role') === role) {
         tab.classList.add('active');
@@ -294,7 +364,7 @@ class ArenaFlowController {
       }
     });
 
-    // Toggle active panel visibility
+    // Toggle view overlays
     document.querySelectorAll('.view-panel').forEach(panel => {
       if (panel.id === `${role}-panel`) {
         panel.classList.add('active');
@@ -303,10 +373,99 @@ class ArenaFlowController {
       }
     });
 
-    window.Security.AuditLogger.log('SWITCH_VIEW_ROLE', 'User', 'SUCCESS', `Switched application role to ${role}`);
+    this.renderAuthOverlay();
+    window.Security.AuditLogger.log('SWITCH_VIEW_ROLE', 'User', 'SUCCESS', `Entered ${role} role interface.`);
   }
 
-  // --- Rendering Functions ---
+  handlePinSubmit() {
+    const inputPin = document.getElementById('auth-pin-input');
+    if (!inputPin) return;
+    const pin = inputPin.value;
+
+    // Validate length/format
+    const valResult = window.Security.validateField(pin, {
+      required: true,
+      pattern: window.Security.Patterns.PIN,
+      patternMessage: 'PIN must be alphanumeric and 4-10 characters.'
+    });
+
+    if (!valResult.isValid) {
+      alert(valResult.error);
+      return;
+    }
+
+    const role = this.pendingRoleSwitch || this.activeRole;
+    const isSuccess = window.Security.Auth.verifyPIN(pin, role);
+
+    if (isSuccess) {
+      inputPin.value = '';
+      this.switchRole(role); // resume switch
+    } else {
+      alert('Invalid PIN code entered. Access Denied.');
+    }
+  }
+
+  simulateTicketScan() {
+    const btn = document.getElementById('btn-scan-ticket');
+    if (btn) btn.disabled = true;
+
+    window.Security.AuditLogger.log('TICKET_SCAN_TRIGGER', 'Fan Terminal', 'SUCCESS', 'Scanning digital World Cup ticket...');
+
+    setTimeout(() => {
+      // Auto populate Fan view navigation controls
+      const selectBlock = document.getElementById('nav-start-block');
+      const orderSeat = document.getElementById('order-seat');
+      if (selectBlock) selectBlock.value = 'Block-104';
+      if (orderSeat) orderSeat.value = 'Block-104, Row G, Seat 9';
+
+      // Greets user in Aura chat
+      window.Store.addChatMessage('fan', 'user', '[Simulated Ticket Scan]');
+      window.Store.addChatMessage('fan', 'aura', '🎟️ Ticket Verified! Welcome to MetLife Stadium. You are registered in Block 104. I have automatically configured your seat route. How can I assist you today?');
+
+      if (btn) btn.disabled = false;
+      alert('Ticket verified! Seat designated to Block 104.');
+    }, 1500);
+  }
+
+  // --- Aura AI Chat handlers ---
+
+  handleChatSubmit(roleType) {
+    const inputId = roleType === 'fan' ? 'fan-chat-input' : 'operator-chat-input';
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const text = input.value;
+
+    const valResult = window.Security.validateField(text, { required: true, maxLength: 150 });
+    if (!valResult.isValid) {
+      alert('Invalid message: ' + valResult.error);
+      return;
+    }
+
+    // Rate Limiting (Security check: prevents spamming chat)
+    const ipKey = `${roleType}_chat_ip`;
+    const allowed = window.Security.RateLimiter.checkLimit(ipKey, 5, 20); // max 5 chats per 20 seconds
+    if (!allowed) {
+      alert('Rate limit exceeded. Please wait a few seconds before messaging Aura AI again.');
+      return;
+    }
+
+    // Record user chat in store
+    window.Store.addChatMessage(roleType, 'user', text);
+    input.value = '';
+
+    // Typing delay simulator for realistic AI assistant response
+    setTimeout(() => {
+      let aiResponse = '';
+      if (roleType === 'fan') {
+        aiResponse = AuraAI.processFanQuery(text);
+      } else {
+        aiResponse = AuraAI.processOperatorQuery(text);
+      }
+      window.Store.addChatMessage(roleType, 'aura', aiResponse);
+    }, 600);
+  }
+
+  // --- Rendering functions ---
 
   render(state) {
     this.renderMatches(state.matches);
@@ -315,19 +474,56 @@ class ArenaFlowController {
     this.renderAnnouncements(state.announcements);
     this.renderHeatmapDetail();
     this.renderAuditLogs();
+    
+    // Render Chat Histories
+    this.renderChatMessages('fan', state.fanChatHistory);
+    this.renderChatMessages('operator', state.operatorChatHistory);
+  }
+
+  renderAuthOverlay() {
+    const overlay = document.getElementById('auth-screen-overlay');
+    if (!overlay) return;
+
+    const needsAuth = (this.activeRole === 'operator' || this.activeRole === 'diagnostics') && 
+                      !window.Security.Auth.isAuthorized(this.activeRole);
+
+    if (needsAuth) {
+      overlay.style.display = 'flex';
+      const roleLabel = document.getElementById('auth-role-name');
+      if (roleLabel) roleLabel.textContent = this.activeRole.toUpperCase();
+    } else {
+      overlay.style.display = 'none';
+    }
+  }
+
+  renderChatMessages(roleType, history) {
+    const chatHistoryEl = document.getElementById(`${roleType}-chat-history`);
+    if (!chatHistoryEl) return;
+
+    chatHistoryEl.innerHTML = history.map(msg => {
+      const bubbleClass = msg.sender === 'aura' ? 'bubble-aura' : 'bubble-user';
+      const senderName = msg.sender === 'aura' ? 'Aura AI' : 'You';
+      return `
+        <div class="chat-bubble ${bubbleClass}">
+          <div style="font-weight:700; font-size:0.75rem; margin-bottom:0.15rem; color:var(--text-muted)">${senderName}</div>
+          <div>${msg.text}</div>
+        </div>
+      `;
+    }).join('');
+
+    chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight; // auto scroll
   }
 
   renderMatches(matches) {
-    // 1. Render in Fan View Match list
     const fanMatchesList = document.getElementById('fan-matches-list');
     if (fanMatchesList) {
       fanMatchesList.innerHTML = matches.map(match => this.createMatchHtml(match, false)).join('');
     }
 
-    // 2. Render in Operator View Match List (with score inputs)
     const operatorMatchesList = document.getElementById('operator-matches-list');
     if (operatorMatchesList) {
       operatorMatchesList.innerHTML = matches.map(match => this.createMatchHtml(match, true)).join('');
+      
       // Bind inline scoring buttons
       operatorMatchesList.querySelectorAll('.btn-score-up').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -338,16 +534,16 @@ class ArenaFlowController {
         });
       });
 
-      // Bind inline status select boxes
+      // Bind status changes
       operatorMatchesList.querySelectorAll('.select-match-status').forEach(select => {
         select.addEventListener('change', (e) => {
           const matchId = e.target.getAttribute('data-match-id');
           const newStatus = e.target.value;
           const match = matches.find(m => m.id === matchId);
           let newTime = match.time;
-          if (newStatus === 'LIVE' && match.status !== 'LIVE') newTime = 'Q1 - 10:00';
-          if (newStatus === 'COMPLETED') newTime = 'Final';
-          if (newStatus === 'SCHEDULED') newTime = '18:00';
+          if (newStatus === 'LIVE' && match.status !== 'LIVE') newTime = '00:00';
+          if (newStatus === 'COMPLETED') newTime = 'Full Time';
+          if (newStatus === 'SCHEDULED') newTime = '19:30';
           window.Store.updateMatchStatus(matchId, newStatus, newTime);
         });
       });
@@ -356,13 +552,18 @@ class ArenaFlowController {
 
   createMatchHtml(match, isOperator) {
     const statusClass = match.status === 'LIVE' ? 'badge-live' : match.status === 'COMPLETED' ? 'badge-completed' : 'badge-scheduled';
-    
+    const cleanVenue = window.Security.sanitizeHtml(match.venue);
+    const cleanTournament = window.Security.sanitizeHtml(match.tournament);
+    const cleanTeamA = window.Security.sanitizeHtml(match.teamA.name);
+    const cleanTeamB = window.Security.sanitizeHtml(match.teamB.name);
+    const cleanTime = window.Security.sanitizeHtml(match.time);
+
     if (isOperator) {
       return `
         <div class="match-item" data-match-id="${match.id}">
           <div class="match-meta">
-            <span>${window.Security.sanitizeHtml(match.tournament)} | ${window.Security.sanitizeHtml(match.venue)}</span>
-            <select class="select-match-status" data-match-id="${match.id}" aria-label="Change status for match vs ${match.teamA.name}">
+            <span>${cleanTournament} | ${cleanVenue}</span>
+            <select class="select-match-status" data-match-id="${match.id}" aria-label="Status select">
               <option value="SCHEDULED" ${match.status === 'SCHEDULED' ? 'selected' : ''}>Scheduled</option>
               <option value="LIVE" ${match.status === 'LIVE' ? 'selected' : ''}>Live</option>
               <option value="COMPLETED" ${match.status === 'COMPLETED' ? 'selected' : ''}>Completed</option>
@@ -371,28 +572,24 @@ class ArenaFlowController {
           <div class="match-scoreline">
             <div class="team-info">
               <span class="team-dot" style="background-color: ${match.teamA.color}"></span>
-              <span>${window.Security.sanitizeHtml(match.teamA.name)}</span>
+              <span>${cleanTeamA}</span>
             </div>
             <div class="score-display">
               <span>${match.teamA.score}</span>
               <span class="score-divider">-</span>
               <span>${match.teamB.score}</span>
             </div>
-            <div class="team-info">
-              <span>${window.Security.sanitizeHtml(match.teamB.name)}</span>
+            <div class="team-info right">
+              <span>${cleanTeamB}</span>
               <span class="team-dot" style="background-color: ${match.teamB.color}"></span>
             </div>
           </div>
           <div class="match-controls">
-            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="A" data-delta="1" aria-label="Score +1 to ${match.teamA.name}">
-              +1 ${match.teamA.name}
-            </button>
-            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="B" data-delta="1" aria-label="Score +1 to ${match.teamB.name}">
-              +1 ${match.teamB.name}
-            </button>
-            <span style="flex-grow: 1;"></span>
-            <input type="text" value="${window.Security.sanitizeHtml(match.time)}" class="match-time-input" 
-              data-match-id="${match.id}" style="width: 80px; text-align: center; padding: 0.2rem;" aria-label="Match time clock"
+            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="A" data-delta="1">+1 ${cleanTeamA}</button>
+            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="B" data-delta="1">+1 ${cleanTeamB}</button>
+            <span style="flex-grow:1;"></span>
+            <input type="text" value="${cleanTime}" class="match-time-input" 
+              style="width: 80px; text-align: center; padding: 0.2rem;" aria-label="Clock"
               onchange="window.Store.updateMatchStatus('${match.id}', '${match.status}', this.value)"/>
           </div>
         </div>
@@ -401,26 +598,26 @@ class ArenaFlowController {
       return `
         <div class="match-item">
           <div class="match-meta">
-            <span>${window.Security.sanitizeHtml(match.tournament)} | ${window.Security.sanitizeHtml(match.venue)}</span>
+            <span>${cleanTournament} | ${cleanVenue}</span>
             <span class="match-status-badge ${statusClass}">${match.status}</span>
           </div>
           <div class="match-scoreline">
             <div class="team-info">
               <span class="team-dot" style="background-color: ${match.teamA.color}"></span>
-              <span>${window.Security.sanitizeHtml(match.teamA.name)}</span>
+              <span>${cleanTeamA}</span>
             </div>
             <div class="score-display">
               <span>${match.teamA.score}</span>
               <span class="score-divider">:</span>
               <span>${match.teamB.score}</span>
             </div>
-            <div class="team-info">
-              <span>${window.Security.sanitizeHtml(match.teamB.name)}</span>
+            <div class="team-info right">
+              <span>${cleanTeamB}</span>
               <span class="team-dot" style="background-color: ${match.teamB.color}"></span>
             </div>
           </div>
           <div style="font-size: 0.8rem; text-align: center; color: var(--text-muted); margin-top: 0.25rem;">
-            <span>Game Time: ${window.Security.sanitizeHtml(match.time)}</span>
+            <span>Game Clock: ${cleanTime}</span>
           </div>
         </div>
       `;
@@ -434,41 +631,48 @@ class ArenaFlowController {
     tableBody.innerHTML = incidents.map(inc => {
       const severityClass = `severity-${inc.severity.toLowerCase()}`;
       const statusClass = `status-${inc.status.toLowerCase()}`;
-      
+      const cleanId = window.Security.sanitizeHtml(inc.id);
+      const cleanType = window.Security.sanitizeHtml(inc.type);
+      const cleanLoc = window.Security.sanitizeHtml(inc.location);
+      const cleanDesc = window.Security.sanitizeHtml(inc.description);
+      const cleanSeverity = window.Security.sanitizeHtml(inc.severity);
+      const cleanStatus = window.Security.sanitizeHtml(inc.status);
+      const cleanStaff = inc.assignedStaff ? window.Security.sanitizeHtml(inc.assignedStaff) : '<em>None</em>';
+
       let actions = '';
       if (inc.status === 'Open') {
-        actions = `<button class="btn btn-secondary btn-assign-inc" data-incident-id="${inc.id}">Assign Staff</button>`;
+        actions = `<button class="btn btn-secondary btn-assign-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;">Assign Staff</button>`;
       } else if (inc.status === 'Assigned') {
-        actions = `<button class="btn btn-success btn-resolve-inc" data-incident-id="${inc.id}">Resolve</button>`;
+        actions = `<button class="btn btn-success btn-resolve-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;">Resolve</button>`;
       } else {
-        actions = `<span style="color: var(--color-success); font-weight: 600;">✓ Completed</span>`;
+        actions = `<span style="color: var(--color-primary); font-weight:700;">✓ Resolved</span>`;
       }
 
       return `
         <tr>
-          <td><strong>#${inc.id}</strong></td>
-          <td>${window.Security.sanitizeHtml(inc.type)}</td>
-          <td>${window.Security.sanitizeHtml(inc.location)}</td>
-          <td>${window.Security.sanitizeHtml(inc.description)}</td>
-          <td><span class="severity-badge ${severityClass}">${inc.severity}</span></td>
-          <td><span class="status-badge ${statusClass}">${inc.status}</span></td>
-          <td>${inc.assignedStaff ? window.Security.sanitizeHtml(inc.assignedStaff) : '<em style="color: var(--text-muted)">None</em>'}</td>
+          <td><strong>#${cleanId}</strong></td>
+          <td>${cleanType}</td>
+          <td>${cleanLoc}</td>
+          <td>${cleanDesc}</td>
+          <td><span class="severity-badge ${severityClass}">${cleanSeverity}</span></td>
+          <td><span class="status-badge ${statusClass}">${cleanStatus}</span></td>
+          <td>${cleanStaff}</td>
           <td>${actions}</td>
         </tr>
       `;
     }).join('');
 
-    // Bind dynamic incident action buttons
+    // Action bindings
     tableBody.querySelectorAll('.btn-assign-inc').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const incId = e.target.getAttribute('data-incident-id');
-        const staffName = prompt('Enter name of dispatch staff to assign:');
+        const staffName = prompt('Assign dispatch responder:');
         if (staffName && staffName.trim()) {
-          const validated = window.Security.validateField(staffName, { minLength: 2, maxLength: 30 });
-          if (validated.isValid) {
+          const valResult = window.Security.validateField(staffName, { minLength: 2, maxLength: 30 });
+          if (valResult.isValid) {
             window.Store.assignIncident(incId, staffName);
           } else {
-            alert('Invalid staff name: ' + validated.error);
+            alert('Invalid responder name: ' + valResult.error);
           }
         }
       });
@@ -483,49 +687,48 @@ class ArenaFlowController {
   }
 
   renderConcessions(orders) {
-    // 1. Render in Operator View Concession manager
     const operatorOrdersList = document.getElementById('operator-orders-list');
     if (operatorOrdersList) {
       operatorOrdersList.innerHTML = orders.map(ord => {
-        const statusText = ord.status;
+        const cleanId = window.Security.sanitizeHtml(ord.id);
+        const cleanSeat = window.Security.sanitizeHtml(ord.seat);
+        const cleanItems = window.Security.sanitizeHtml(ord.items);
+        const cleanRunner = ord.runner ? window.Security.sanitizeHtml(ord.runner) : '<em>Unassigned</em>';
+        const cleanStatus = window.Security.sanitizeHtml(ord.status);
+
         let actionButtons = '';
         if (ord.status === 'Received') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${ord.id}" data-action="Preparing">Prepare</button>`;
+          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Preparing" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Prepare</button>`;
         } else if (ord.status === 'Preparing') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${ord.id}" data-action="Dispatched">Dispatch</button>`;
+          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Dispatched" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Dispatch</button>`;
         } else if (ord.status === 'Dispatched') {
-          actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${ord.id}" data-action="Delivered">Mark Delivered</button>`;
+          actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${cleanId}" data-action="Delivered" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Mark Delivered</button>`;
         } else {
-          actionButtons = `<span style="color: var(--color-success)">✓ Delivered</span>`;
+          actionButtons = `<span style="color: var(--color-primary); font-weight:700;">✓ Delivered</span>`;
         }
 
         return `
-          <div class="match-item" style="border-left: 4px solid var(--color-primary);">
+          <div class="match-item" style="border-left: 4px solid var(--color-accent);">
             <div class="match-meta">
-              <span>Order #${ord.id} - ${ord.seat}</span>
-              <span class="status-badge" style="background-color: rgba(255,255,255,0.05); color: var(--text-primary); border: 1px solid var(--border-color);">${statusText}</span>
+              <span>Order #${cleanId} - ${cleanSeat}</span>
+              <span class="status-badge" style="background-color:rgba(255,255,255,0.02); color:var(--text-primary);">${cleanStatus}</span>
             </div>
-            <div style="font-weight: 500; font-size: 0.9rem; padding: 0.25rem 0;">
-              ${window.Security.sanitizeHtml(ord.items)}
-            </div>
-            <div style="display:flex; justify-content: space-between; align-items:center; font-size:0.75rem;">
-              <span>Runner: ${ord.runner ? window.Security.sanitizeHtml(ord.runner) : '<em>Unassigned</em>'}</span>
-              <div style="display:flex; gap:0.25rem;">
-                ${actionButtons}
-              </div>
+            <div style="font-weight:600; font-size:0.85rem; padding: 0.2rem 0;">${cleanItems}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+              <span>Runner: ${cleanRunner}</span>
+              <div>${actionButtons}</div>
             </div>
           </div>
         `;
       }).join('');
 
-      // Bind dynamic actions
       operatorOrdersList.querySelectorAll('.btn-order-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const ordId = e.target.getAttribute('data-order-id');
           const nextAction = e.target.getAttribute('data-action');
           let runnerName = '';
           if (nextAction === 'Dispatched') {
-            runnerName = prompt('Enter Delivery Runner name:');
+            runnerName = prompt('Enter delivery staff name:');
             if (!runnerName || !runnerName.trim()) return;
           }
           window.Store.updateOrderStatus(ordId, nextAction, runnerName);
@@ -533,15 +736,13 @@ class ArenaFlowController {
       });
     }
 
-    // 2. Render Concessions Status in Fan View (Track Order)
     const fanOrderTrackList = document.getElementById('fan-order-track-list');
     if (fanOrderTrackList) {
-      // Find orders matching last placed seat order
       const mySeat = sessionStorage.getItem('last_placed_seat') || '';
       const myOrders = orders.filter(o => o.seat === mySeat);
       
       if (myOrders.length === 0) {
-        fanOrderTrackList.innerHTML = `<p style="font-size:0.85rem; color:var(--text-muted)">No active food orders placed from this browser tab yet.</p>`;
+        fanOrderTrackList.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted)">No active food orders placed from this session.</p>`;
       } else {
         fanOrderTrackList.innerHTML = myOrders.map(ord => {
           let progressPercent = 10;
@@ -550,18 +751,15 @@ class ArenaFlowController {
           if (ord.status === 'Delivered') progressPercent = 100;
           
           return `
-            <div class="match-item" style="border: 1px solid rgba(255,255,255,0.05);">
+            <div class="match-item" style="border: 1px solid var(--border-color);">
               <div class="match-meta">
-                <span>Order #${ord.id} (${ord.status})</span>
-                <span>Seat: ${ord.seat}</span>
+                <span>Order #${window.Security.sanitizeHtml(ord.id)}</span>
+                <span class="status-badge status-${ord.status.toLowerCase()}">${window.Security.sanitizeHtml(ord.status)}</span>
               </div>
-              <div style="font-size: 0.85rem; font-weight: 500;">${window.Security.sanitizeHtml(ord.items)}</div>
-              <div style="margin: 0.5rem 0 0.25rem 0; background-color: rgba(255,255,255,0.05); height: 6px; border-radius: 3px; overflow:hidden;">
-                <div style="background-color: var(--color-success); width: ${progressPercent}%; height:100%; transition: width 0.3s ease;"></div>
+              <div style="font-size: 0.85rem; font-weight:700;">${window.Security.sanitizeHtml(ord.items)}</div>
+              <div style="margin: 0.5rem 0; background-color:rgba(255,255,255,0.05); height:6px; border-radius:3px; overflow:hidden;">
+                <div style="background-color:var(--color-primary); width: ${progressPercent}%; height:100%; transition:width 0.4s ease;"></div>
               </div>
-              <span style="font-size:0.75rem; color:var(--text-muted)">
-                ${ord.status === 'Dispatched' ? `Delivery runner ${ord.runner} is on their way!` : ord.status === 'Delivered' ? 'Enjoy your food!' : 'Kitchen is preparing your order.'}
-              </span>
             </div>
           `;
         }).join('');
@@ -574,7 +772,7 @@ class ArenaFlowController {
     if (!list) return;
 
     if (announcements.length === 0) {
-      list.innerHTML = `<p style="font-size: 0.85rem; color: var(--text-muted)">No active public alerts/announcements.</p>`;
+      list.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted)">No active announcements.</p>`;
       return;
     }
 
@@ -585,7 +783,7 @@ class ArenaFlowController {
         <div class="alert-banner ${typeClass}" role="alert" aria-live="assertive">
           <div style="font-size:1.1rem;">${icon}</div>
           <div style="flex-grow:1;">
-            <div style="font-weight:700; font-size:0.9rem;">${window.Security.sanitizeHtml(ann.title)}</div>
+            <div style="font-weight:800; font-size:0.85rem;">${window.Security.sanitizeHtml(ann.title)}</div>
             <div style="margin-top:0.2rem; color:var(--text-primary); font-size:0.8rem;">${window.Security.sanitizeHtml(ann.content)}</div>
           </div>
         </div>
@@ -597,16 +795,13 @@ class ArenaFlowController {
     const detailBox = document.getElementById('sensor-details');
     if (!detailBox) return;
 
-    // Get current data based on this.selectedGateSensor
     const isGate = this.selectedGateSensor.startsWith('gate-');
     const sensors = window.Store.state.sensors;
     
-    // Remove active highlight from all nodes
     document.querySelectorAll('.sensor-node').forEach(node => {
       node.style.border = '2px solid #fff';
     });
     
-    // Highlight the selected node
     const selectedEl = document.querySelector(`[data-sensor-id="${this.selectedGateSensor}"]`);
     if (selectedEl) {
       selectedEl.style.border = '3px solid var(--border-focus)';
@@ -615,21 +810,24 @@ class ArenaFlowController {
     if (isGate) {
       const gate = sensors.gates.find(g => g.id === this.selectedGateSensor);
       const isCritical = gate.alert === 'Critical';
+      const cleanName = window.Security.sanitizeHtml(gate.name);
+      const cleanAlert = window.Security.sanitizeHtml(gate.alert);
+
       detailBox.innerHTML = `
         <div class="sensor-detail-box">
-          <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom:0.25rem; margin-bottom:0.4rem; color:var(--color-primary)">${window.Security.sanitizeHtml(gate.name)}</h4>
+          <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom:0.25rem; margin-bottom:0.4rem; color:var(--color-primary)">${cleanName}</h4>
           <div class="sensor-detail-item"><span>Current Flow:</span><strong>${gate.flowRate} fans/min</strong></div>
           <div class="sensor-detail-item"><span>Occupancy:</span><strong>${gate.occupancy} / ${gate.capacity}</strong></div>
-          <div class="sensor-detail-item"><span>Alert Status:</span><strong style="color: ${isCritical ? 'var(--color-danger)' : gate.alert === 'Moderate' ? 'var(--color-warning)' : 'var(--color-success)'}">${gate.alert}</strong></div>
+          <div class="sensor-detail-item"><span>Alert Status:</span><strong style="color: ${isCritical ? 'var(--color-danger)' : gate.alert === 'Moderate' ? 'var(--color-accent)' : 'var(--color-primary)'}">${cleanAlert}</strong></div>
           
           ${isCritical ? `
-            <div style="margin-top:0.6rem; color:var(--color-danger); font-size:0.75rem; font-weight:600;">⚠️ Gate Congestion High</div>
+            <div style="margin-top:0.6rem; color:var(--color-danger); font-size:0.75rem; font-weight:700;">⚠️ Gate Congestion Critical</div>
           ` : gate.alert === 'Moderate' ? `
             <button class="btn btn-warning" style="width:100%; font-size:0.75rem; padding:0.3rem; margin-top:0.6rem;" onclick="window.Store.triggerRerouteAlert('${gate.id}', 'Gate D (West)')">
               Trigger Rerouting
             </button>
           ` : `
-            <div style="margin-top:0.6rem; color:var(--color-success); font-size:0.75rem;">✓ Normal operations</div>
+            <div style="margin-top:0.6rem; color:var(--color-primary); font-size:0.75rem; font-weight:700;">✓ Operations Normal</div>
           `}
         </div>
       `;
@@ -640,26 +838,25 @@ class ArenaFlowController {
           <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom:0.25rem; margin-bottom:0.4rem; color:var(--color-primary)">${window.Security.sanitizeHtml(zone.name)}</h4>
           <div class="sensor-detail-item"><span>Average Wait:</span><strong>${zone.queueWait}</strong></div>
           <div class="sensor-detail-item"><span>Density:</span><strong>${zone.occupancy} / ${zone.capacity}</strong></div>
-          <div class="sensor-detail-item"><span>Alert Status:</span><strong style="color: ${zone.alert === 'Critical' ? 'var(--color-danger)' : zone.alert === 'Moderate' ? 'var(--color-warning)' : 'var(--color-success)'}">${zone.alert}</strong></div>
+          <div class="sensor-detail-item"><span>Alert Status:</span><strong style="color: ${zone.alert === 'Critical' ? 'var(--color-danger)' : zone.alert === 'Moderate' ? 'var(--color-accent)' : 'var(--color-primary)'}">${window.Security.sanitizeHtml(zone.alert)}</strong></div>
         </div>
       `;
     }
   }
 
   renderAuditLogs() {
-    const consoleLogs = document.getElementById('audit-logs-list');
-    if (!consoleLogs) return;
+    const list = document.getElementById('audit-logs-list');
+    if (!list) return;
 
     const logs = window.Security.AuditLogger.getLogs();
     if (logs.length === 0) {
-      consoleLogs.innerHTML = `<div class="diag-log-line" style="color:var(--text-muted)">No system audit logs found.</div>`;
+      list.innerHTML = `<div class="diag-log-line" style="color:var(--text-muted)">No operational logs generated yet.</div>`;
       return;
     }
 
-    // Display logs in reverse order (newest first)
-    consoleLogs.innerHTML = logs.slice().reverse().map(log => {
+    list.innerHTML = logs.slice().reverse().map(log => {
       const date = new Date(log.timestamp).toLocaleTimeString();
-      const statusColor = log.status === 'SUCCESS' ? 'var(--color-success)' : 'var(--color-danger)';
+      const statusColor = log.status === 'SUCCESS' ? 'var(--color-primary)' : 'var(--color-danger)';
       return `
         <div class="diag-log-line">
           [${date}] <span style="color:${statusColor}">${log.status}</span> <strong>${log.action}</strong> by <em>${log.user}</em>: ${log.details}
@@ -668,18 +865,15 @@ class ArenaFlowController {
     }).join('');
   }
 
-  // --- Algorithmic & Action Handlers ---
+  // --- Actions & Calculations ---
 
   adjustMatchScore(matchId, team, delta) {
     const match = window.Store.state.matches.find(m => m.id === matchId);
     if (match) {
       let scoreA = match.teamA.score;
       let scoreB = match.teamB.score;
-      if (team === 'A') {
-        scoreA = Math.max(0, scoreA + delta);
-      } else {
-        scoreB = Math.max(0, scoreB + delta);
-      }
+      if (team === 'A') scoreA = Math.max(0, scoreA + delta);
+      else scoreB = Math.max(0, scoreB + delta);
       window.Store.updateScore(matchId, scoreA, scoreB);
     }
   }
@@ -689,7 +883,6 @@ class ArenaFlowController {
     const selectGate = document.getElementById('nav-end-gate');
     const toggleAccessible = document.getElementById('nav-accessible-toggle');
     const resultsContainer = document.getElementById('nav-instructions-list');
-    const ttsAlertBox = document.getElementById('routing-tts-prompt');
 
     if (!selectBlock || !selectGate || !resultsContainer) return;
 
@@ -697,14 +890,50 @@ class ArenaFlowController {
     const endGate = selectGate.value;
     const stepFree = toggleAccessible ? toggleAccessible.checked : false;
 
-    // Run Dijkstra pathfinder
-    const result = findShortestPath(startBlock, endGate, stepFree);
-    const steps = generatePathInstructions(result.path, stepFree);
+    // Run Pathfinder
+    const result = window.Router.findShortestPath(startBlock, endGate, stepFree);
+    const steps = window.Router.generateInstructions(result.path);
 
-    // Save instructions to class property for TTS read-out
     this.currentNavInstructions = steps.map(s => s.action).join('. ');
 
-    // Display results in UI
+    // Render output
+    this.renderPathOutput(steps, result.rerouted);
+
+    // Update accessibility live region
+    const liveRegion = document.getElementById('sr-live-route-announcement');
+    if (liveRegion) {
+      liveRegion.textContent = `Route computed. ${steps.length} steps. First: ${steps[0].action}`;
+    }
+
+    window.Security.AuditLogger.log('CALCULATE_ROUTE', 'Fan Seat Finder', 'SUCCESS', `Route computed: ${startBlock} -> ${endGate} (Step-free: ${stepFree}, Rerouted: ${result.rerouted})`);
+  }
+
+  renderPathOutput(steps, rerouted) {
+    const resultsContainer = document.getElementById('nav-instructions-list');
+    const ttsAlertBox = document.getElementById('routing-tts-prompt');
+    const pathAlertContainer = document.getElementById('path-alert-container');
+
+    if (!resultsContainer) return;
+
+    // Render hazard alert banner if rerouted
+    if (pathAlertContainer) {
+      if (rerouted) {
+        pathAlertContainer.innerHTML = `
+          <div class="route-alert reroute-active">
+            ⚠️ <strong>Aura AI Notice:</strong> Optimal route recalculated. Standard path contains active incidents; routing around safety hazard.
+          </div>
+        `;
+      } else if (steps.length === 1 && steps[0].node === 'Error') {
+        pathAlertContainer.innerHTML = `
+          <div class="route-alert">
+            🛑 <strong>Blocked Path:</strong> Active safety hazards block all paths to this gate. Please contact an usher immediately.
+          </div>
+        `;
+      } else {
+        pathAlertContainer.innerHTML = '';
+      }
+    }
+
     resultsContainer.innerHTML = steps.map((step, idx) => `
       <div class="path-node-step">
         <div class="path-step-icon">${idx + 1}</div>
@@ -712,18 +941,10 @@ class ArenaFlowController {
       </div>
     `).join('');
 
-    // Update screen-reader live announcement region
-    const liveRegion = document.getElementById('sr-live-route-announcement');
-    if (liveRegion) {
-      liveRegion.textContent = `Route calculated. Total of ${steps.length} steps. First step: ${steps[0].action}`;
-    }
-
-    // Show Speech synthesis play button helper
     if (ttsAlertBox) {
       ttsAlertBox.style.display = 'flex';
       const readBtn = document.getElementById('btn-tts-read-path');
       if (readBtn) {
-        // Remove previous listeners by cloning
         const newReadBtn = readBtn.cloneNode(true);
         readBtn.parentNode.replaceChild(newReadBtn, readBtn);
         newReadBtn.addEventListener('click', () => {
@@ -731,8 +952,6 @@ class ArenaFlowController {
         });
       }
     }
-
-    window.Security.AuditLogger.log('CALCULATE_ROUTE', 'Fan Seat Finder', 'SUCCESS', `Route computed from ${startBlock} to ${endGate} (Accessible: ${stepFree})`);
   }
 
   handleFanOrder() {
@@ -745,30 +964,31 @@ class ArenaFlowController {
     const seatVal = inputSeat.value;
     const foodVal = selectFood.value;
 
-    // Validate seat input
     const validatedSeat = window.Security.validateField(seatVal, {
       required: true,
       pattern: window.Security.Patterns.SEAT,
-      patternMessage: 'Seat must contain Block, Row and Seat info (e.g. Block 104, Row G, Seat 9).'
+      patternMessage: 'Seat address format must contain Block/Seat (e.g. Block-104).'
     });
 
     if (!validatedSeat.isValid) {
-      alert(`Invalid Seat Address: ${validatedSeat.error}`);
+      alert(`Invalid Seat: ${validatedSeat.error}`);
       return;
     }
 
-    // Place order
+    // Rate limit check
+    if (!window.Security.RateLimiter.checkLimit('concession_order', 2, 30)) {
+      alert('Too many concession orders. Please wait 30 seconds before placing another order.');
+      return;
+    }
+
     const order = window.Store.placeOrder(seatVal, foodVal);
-    
-    // Save seat info locally so they can track their order next time
     sessionStorage.setItem('last_placed_seat', seatVal);
     
-    // Reset form and show success notification
     selectFood.selectedIndex = 0;
     if (alertBox) {
       alertBox.style.display = 'block';
-      alertBox.textContent = `Order placed successfully! Tracking ID: #${order.id}. Preparing food shortly.`;
-      setTimeout(() => { alertBox.style.display = 'none'; }, 8000);
+      alertBox.textContent = `Order placed successfully! Tracking ID: #${order.id}.`;
+      setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
     }
   }
 
@@ -786,11 +1006,10 @@ class ArenaFlowController {
     const descVal = textDesc.value;
     const severityVal = selectSeverity.value;
 
-    // Validate inputs
     const validatedSeat = window.Security.validateField(seatVal, {
       required: true,
       pattern: window.Security.Patterns.SEAT,
-      patternMessage: 'Location must specify Block/Seat (e.g. Block 102).'
+      patternMessage: 'Specify a valid Block/Stairwell ID (e.g. Stairwell-3).'
     });
 
     const validatedDesc = window.Security.validateField(descVal, {
@@ -800,27 +1019,30 @@ class ArenaFlowController {
     });
 
     if (!validatedSeat.isValid) {
-      alert(`Invalid Location: ${validatedSeat.error}`);
+      alert(`Location Error: ${validatedSeat.error}`);
       return;
     }
 
     if (!validatedDesc.isValid) {
-      alert(`Invalid Description: ${validatedDesc.error}`);
+      alert(`Description Error: ${validatedDesc.error}`);
       return;
     }
 
-    // Submit incident
+    // Rate Limit check
+    if (!window.Security.RateLimiter.checkLimit('incident_report', 3, 60)) {
+      alert('Rate limit exceeded. Please wait 60 seconds before submitting another incident.');
+      return;
+    }
+
     const inc = window.Store.reportIncident(typeVal, seatVal, descVal, severityVal);
 
-    // Reset fields
     inputSeat.value = '';
     textDesc.value = '';
-    selectSeverity.selectedIndex = 0;
 
     if (alertBox) {
       alertBox.style.display = 'block';
-      alertBox.textContent = `Incident ticket #${inc.id} submitted. TOC Operations has dispatched responders.`;
-      setTimeout(() => { alertBox.style.display = 'none'; }, 8000);
+      alertBox.textContent = `Incident ticket #${inc.id} logged. Safeguards dispatched.`;
+      setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
     }
   }
 
@@ -850,55 +1072,40 @@ class ArenaFlowController {
     const valTeamB = window.Security.validateField(teamBName, { required: true, minLength: 2, maxLength: 40 });
 
     if (!valSport.isValid || !valTour.isValid || !valVenue.isValid || !valTeamA.isValid || !valTeamB.isValid) {
-      alert('Validation error. Please verify match fields are correct.');
+      alert('Validation error. Please verify input fields.');
       return;
     }
 
-    const matchData = {
+    window.Store.addMatch({
       sport,
       tournament,
       venue,
       time,
       date: new Date().toISOString().split('T')[0],
       status: 'SCHEDULED',
-      teamA: { name: teamAName, score: 0, color: teamAColor ? teamAColor.value : '#3b82f6' },
-      teamB: { name: teamBName, score: 0, color: teamBColor ? teamBColor.value : '#ff4b4b' }
-    };
+      teamA: { name: teamAName, score: 0, color: teamAColor.value },
+      teamB: { name: teamBName, score: 0, color: teamBColor.value }
+    });
 
-    window.Store.addMatch(matchData);
-
-    // Clear inputs
     sportInput.value = '';
     tourInput.value = '';
     venueInput.value = '';
-    timeInput.value = '19:00';
+    timeInput.value = '19:30';
     teamAInput.value = '';
     teamBInput.value = '';
   }
 
-  // --- Accessibility Voice Synthesis engine ---
+  // --- Accessibility Voice Synthesis ---
 
   speakText(text) {
-    if (!('speechSynthesis' in window)) {
-      alert('Speech synthesis is not supported on this browser.');
-      return;
-    }
-
-    // Cancel current speech
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95; // slightly slower for clarity
-    
-    // Choose clean standard voice if possible
+    utterance.rate = 0.95;
     const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(voice => voice.lang.includes('en-'));
-    if (englishVoice) {
-      utterance.voice = englishVoice;
-    }
-
+    const cleanVoice = voices.find(voice => voice.lang.includes('en-'));
+    if (cleanVoice) utterance.voice = cleanVoice;
     window.speechSynthesis.speak(utterance);
-    window.Security.AuditLogger.log('ACCESSIBILITY_TTS', 'System a11y Voice', 'SUCCESS', `Narrated text: "${text.substring(0, 50)}..."`);
   }
 
   speakActiveAnnouncements() {
@@ -907,20 +1114,17 @@ class ArenaFlowController {
       this.speakText("There are no active stadium announcements at this time.");
       return;
     }
-
-    const annTexts = anns.map((ann, idx) => `Announcement ${idx + 1}: ${ann.title}. ${ann.content}`).join('. ');
-    this.speakText(`Reading current announcements: ${annTexts}`);
+    const txt = anns.map((ann, idx) => `Alert ${idx + 1}: ${ann.title}. ${ann.content}`).join('. ');
+    this.speakText(`Reading safety alerts: ${txt}`);
   }
 
-  // --- Built-in Custom Diagnostic Test Runner ---
+  // --- Diagnostics Console Test Runner ---
 
   runSystemDiagnostics() {
     const consoleEl = document.getElementById('diagnostics-console-logs');
     if (!consoleEl) return;
 
-    // Reset console output and print header
     consoleEl.innerHTML = '';
-    
     const writeLog = (text, type = '') => {
       const div = document.createElement('div');
       div.className = `diag-log-line ${type}`;
@@ -930,19 +1134,14 @@ class ArenaFlowController {
     };
 
     writeLog('==================================================', 'diag-header');
-    writeLog(' ARENAFLOW AUTOMATED DIAGNOSTIC SYSTEM TESTS      ', 'diag-header');
-    writeLog(` RUN DATE: ${new Date().toLocaleString()}        `, 'diag-header');
+    writeLog(' ARENAFLOW PRO AUTOMATED DIAGNOSTIC VERIFICATION  ', 'diag-header');
+    writeLog(` RUN TIME: ${new Date().toLocaleString()}         `, 'diag-header');
     writeLog('==================================================', 'diag-header');
-    writeLog('Initializing custom test runner environment...', 'diag-log-line');
+    writeLog('Initializing secure test sandbox...', 'diag-log-line');
 
     setTimeout(() => {
-      // Execute the tests from TestSuite in test-runner.js
       const report = window.TestSuite.run();
       
-      writeLog(`Found ${report.total} registered tests to execute.`, 'diag-log-line');
-      writeLog('Running assertions...', 'diag-log-line');
-      writeLog('--------------------------------------------------', 'diag-log-line');
-
       report.results.forEach(res => {
         if (res.success) {
           writeLog(`[PASS] ${res.name} (${res.durationMs}ms)`, 'diag-pass');
@@ -952,24 +1151,22 @@ class ArenaFlowController {
       });
 
       writeLog('--------------------------------------------------', 'diag-log-line');
-      writeLog(`Test Run Complete. Passed: ${report.passed}/${report.total} tests.`, 'diag-log-line');
+      writeLog(`Test execution completed. Passed: ${report.passed}/${report.total}.`, 'diag-log-line');
       
       if (report.failed === 0) {
-        writeLog('SYSTEM HEALTH CHECK: EXCELLENT. All security sanitizers, state containers, and algorithms are verified healthy.', 'diag-pass');
-        window.Security.AuditLogger.log('RUN_DIAGNOSTICS', 'Diagnostic System', 'SUCCESS', `Executed ${report.total} unit tests. All passed.`);
+        writeLog('SECURITY & ARCHITECTURE AUDIT: PASSED. All validators, route hazards, NLU handlers, and authorization blocks are functional.', 'diag-pass');
+        window.Security.AuditLogger.log('RUN_DIAGNOSTICS', 'Diagnostic System', 'SUCCESS', `Ran ${report.total} assertions. Clean success.`);
       } else {
-        writeLog('SYSTEM HEALTH CHECK: WARNING. One or more assertions failed. Check details in the console above.', 'diag-fail');
-        window.Security.AuditLogger.log('RUN_DIAGNOSTICS', 'Diagnostic System', 'FAILURE', `Executed ${report.total} unit tests. Failed: ${report.failed}`);
+        writeLog('SYSTEM HEALTH CHECK: FAILED. Check details above.', 'diag-fail');
+        window.Security.AuditLogger.log('RUN_DIAGNOSTICS', 'Diagnostic System', 'FAILURE', `Assertions failed: ${report.failed}`);
       }
     }, 800);
   }
 }
 
-// Instantiate and bind to window
 const AppController = new ArenaFlowController();
 window.AppController = AppController;
 
-// Initialize app when DOM content is loaded
 document.addEventListener('DOMContentLoaded', () => {
   AppController.init();
 });

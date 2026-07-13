@@ -1,52 +1,61 @@
 /**
- * ArenaFlow Application Store
- * Manages reactive central state with LocalStorage backup.
+ * ArenaFlow Pro — Application Store
+ * FIFA World Cup 2026 edition. Manages reactive state with local persistence.
  */
+
+// Immutable configuration data (Security: Prevents prototype pollution/modification)
+const STADIUM_CONFIG = Object.freeze({
+  name: 'MetLife Stadium (East Rutherford, NJ)',
+  tournament: 'FIFA World Cup 2026',
+  hostCities: ['East Rutherford', 'Mexico City', 'Vancouver', 'Miami'],
+  adminPin: 'admin789',
+  diagPin: 'tech456'
+});
 
 const DEFAULT_STATE = {
   matches: [
     {
       id: 'match-1',
-      sport: 'Basketball',
-      tournament: 'Grand Slam Championship 2026',
-      teamA: { name: 'Apex Titans', score: 88, color: '#ff4b4b' },
-      teamB: { name: 'Metro Bolts', score: 85, color: '#3b82f6' },
-      status: 'LIVE', // SCHEDULED, LIVE, COMPLETED
-      time: 'Q4 - 02:45',
-      venue: 'Main Arena Court A',
+      sport: 'Football',
+      tournament: 'FIFA World Cup 2026 — Group A',
+      teamA: { name: 'USA', score: 2, color: '#0A2540' },
+      teamB: { name: 'England', score: 1, color: '#E41B23' },
+      status: 'LIVE',
+      time: '78:15',
+      venue: 'MetLife Stadium (NJ)',
       date: '2026-07-14'
     },
     {
       id: 'match-2',
-      sport: 'Volleyball',
-      tournament: 'National Club League',
-      teamA: { name: 'Ocean Breezes', score: 1, color: '#06b6d4' },
-      teamB: { name: 'Desert Storms', score: 2, color: '#f59e0b' },
+      sport: 'Football',
+      tournament: 'FIFA World Cup 2026 — Group B',
+      teamA: { name: 'Mexico', score: 0, color: '#006847' },
+      teamB: { name: 'Argentina', score: 0, color: '#75AADB' },
       status: 'LIVE',
-      time: 'Set 4 - 12:15',
-      venue: 'North Pavilion Court 2',
+      time: '23:40',
+      venue: 'Estadio Azteca (Mexico City)',
       date: '2026-07-14'
     },
     {
       id: 'match-3',
-      sport: 'Basketball',
-      tournament: 'Grand Slam Championship 2026',
-      teamA: { name: 'Giga Hawks', score: 0, color: '#8b5cf6' },
-      teamB: { name: 'Solar Rays', score: 0, color: '#ec4899' },
+      sport: 'Football',
+      tournament: 'FIFA World Cup 2026 — Group C',
+      teamA: { name: 'Canada', score: 0, color: '#FF0000' },
+      teamB: { name: 'France', score: 0, color: '#0055A5' },
       status: 'SCHEDULED',
       time: '19:30',
-      venue: 'Main Arena Court A',
+      venue: 'BC Place (Vancouver)',
       date: '2026-07-14'
     },
     {
       id: 'match-4',
-      sport: 'Basketball',
-      tournament: 'Championship Consolation Round',
-      teamA: { name: 'Iron Wolves', score: 102, color: '#64748b' },
-      teamB: { name: 'Sky Eagles', score: 98, color: '#10b981' },
+      sport: 'Football',
+      tournament: 'FIFA World Cup 2026 — Group D',
+      teamA: { name: 'Germany', score: 3, color: '#000000' },
+      teamB: { name: 'Brazil', score: 2, color: '#FEDF00' },
       status: 'COMPLETED',
-      time: 'Final',
-      venue: 'Main Arena Court B',
+      time: 'Full Time',
+      venue: 'Hard Rock Stadium (Miami)',
       date: '2026-07-13'
     }
   ],
@@ -54,73 +63,62 @@ const DEFAULT_STATE = {
     {
       id: 'inc-101',
       type: 'Spill',
-      location: 'Block 104, Row G, Seat 8',
-      description: 'Large soda spilled in the aisle. Slip hazard reported.',
-      severity: 'Medium', // Low, Medium, High
-      status: 'Assigned', // Open, Assigned, Resolved
-      assignedStaff: 'Rohan Sharma',
-      reportedAt: new Date(Date.now() - 30 * 60000).toISOString() // 30 mins ago
+      location: 'Block-104',
+      description: 'Liquid spill reported in aisle near stairwell access.',
+      severity: 'Medium',
+      status: 'Assigned',
+      assignedStaff: 'John Officer',
+      reportedAt: new Date(Date.now() - 30 * 60000).toISOString()
     },
     {
       id: 'inc-102',
       type: 'Medical',
-      location: 'Gate C Entrance',
-      description: 'Elderly fan feeling dizzy due to heat. Requires medical check.',
+      location: 'Stairwell-3',
+      description: 'Fan reporting minor dizziness. Usher requested.',
       severity: 'High',
       status: 'Open',
       assignedStaff: '',
-      reportedAt: new Date(Date.now() - 5 * 60000).toISOString() // 5 mins ago
-    },
-    {
-      id: 'inc-103',
-      type: 'Maintenance',
-      location: 'Block 212, Row C, Seat 4',
-      description: 'Seat backrest is broken and loose.',
-      severity: 'Low',
-      status: 'Resolved',
-      assignedStaff: 'Michael Scott',
-      reportedAt: new Date(Date.now() - 120 * 60000).toISOString()
+      reportedAt: new Date(Date.now() - 5 * 60000).toISOString()
     }
   ],
   concessions: [
     {
       id: 'ord-501',
-      seat: 'Block 104, Row G, Seat 9',
-      items: '2x Double Cheese Burger, 1x Classic Fries, 1x Large Cola',
-      status: 'Preparing', // Received, Preparing, Dispatched, Delivered
+      seat: 'Block-104, Row G, Seat 9',
+      items: 'Double Cheese Burger Combo ($14)',
+      status: 'Preparing',
       runner: 'Rajesh Kumar',
       timestamp: new Date(Date.now() - 10 * 60000).toISOString()
-    },
-    {
-      id: 'ord-502',
-      seat: 'Block 102, Row B, Seat 3',
-      items: '1x Nachos with Cheese, 1x Diet Soda',
-      status: 'Received',
-      runner: '',
-      timestamp: new Date(Date.now() - 2 * 60000).toISOString()
     }
   ],
   sensors: {
     gates: [
-      { id: 'gate-a', name: 'Gate A (North)', occupancy: 1240, capacity: 2000, flowRate: 85, alert: 'Normal' },
-      { id: 'gate-b', name: 'Gate B (South)', occupancy: 1850, capacity: 2000, flowRate: 98, alert: 'Moderate' },
-      { id: 'gate-c', name: 'Gate C (East)', occupancy: 2150, capacity: 2200, flowRate: 140, alert: 'Critical' },
-      { id: 'gate-d', name: 'Gate D (West)', occupancy: 420, capacity: 1500, flowRate: 25, alert: 'Normal' }
+      { id: 'gate-a', name: 'Gate A (North)', occupancy: 1120, capacity: 2000, flowRate: 45, alert: 'Normal' },
+      { id: 'gate-b', name: 'Gate B (South)', occupancy: 1680, capacity: 2000, flowRate: 88, alert: 'Moderate' },
+      { id: 'gate-c', name: 'Gate C (East)', occupancy: 2150, capacity: 2200, flowRate: 145, alert: 'Critical' },
+      { id: 'gate-d', name: 'Gate D (West)', occupancy: 390, capacity: 1500, flowRate: 20, alert: 'Normal' }
     ],
     concessions: [
-      { id: 'zone-1', name: 'Food Court Plaza', occupancy: 450, capacity: 500, queueWait: '12m', alert: 'Moderate' },
-      { id: 'zone-2', name: 'North Wing Snacks', occupancy: 120, capacity: 250, queueWait: '3m', alert: 'Normal' },
-      { id: 'zone-3', name: 'South Wing Beer & Pretzels', occupancy: 390, capacity: 400, queueWait: '25m', alert: 'Critical' }
+      { id: 'zone-1', name: 'Food Court Plaza', occupancy: 420, capacity: 500, queueWait: '10m', alert: 'Moderate' },
+      { id: 'zone-2', name: 'North Wing Snacks', occupancy: 95, capacity: 250, queueWait: '2m', alert: 'Normal' },
+      { id: 'zone-3', name: 'South Wing Beer & Pretzels', occupancy: 395, capacity: 400, queueWait: '22m', alert: 'Critical' }
     ]
   },
   announcements: [
     {
       id: 'ann-1',
-      title: 'Gate C Crowding Warning',
-      content: 'Gate C is experiencing high congestion. Fans arriving are advised to use Gate D (West) or Gate A (North) for faster entry.',
-      type: 'Warning', // Info, Warning, Critical
+      title: 'Gate C Congestion Notice',
+      content: 'Gate C is heavily congested. We strongly recommend fans arrive/exit via Gate D (West) or Gate A (North) for faster transit.',
+      type: 'Warning',
       timestamp: new Date(Date.now() - 15 * 60000).toISOString()
     }
+  ],
+  // Simulated chat histories for Aura AI
+  fanChatHistory: [
+    { sender: 'aura', text: 'Hello! I am Aura, your FIFA World Cup 2026 Smart Stadium assistant. How can I help you navigate the arena, order concessions, or report safety issues today?' }
+  ],
+  operatorChatHistory: [
+    { sender: 'aura', text: 'TOC Operational Assistant active. Please authenticate using your security PIN to perform remote queries.' }
   ]
 };
 
@@ -128,20 +126,16 @@ const Store = {
   state: null,
   listeners: [],
 
-  /**
-   * Initializes the state, loading from localStorage if present.
-   */
   init() {
     try {
-      const saved = localStorage.getItem('arena_flow_state');
+      const saved = localStorage.getItem('arena_flow_state_v2');
       if (saved) {
         this.state = JSON.parse(saved);
-        // Ensure structure is correct
-        if (!this.state.matches || !this.state.incidents || !this.state.concessions) {
-          throw new Error('Malformed state');
-        }
+        // Ensure chat histories exist
+        if (!this.state.fanChatHistory) this.state.fanChatHistory = [...DEFAULT_STATE.fanChatHistory];
+        if (!this.state.operatorChatHistory) this.state.operatorChatHistory = [...DEFAULT_STATE.operatorChatHistory];
       } else {
-        this.state = JSON.parse(JSON.stringify(DEFAULT_STATE)); // deep copy
+        this.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
         this.save();
       }
     } catch (e) {
@@ -150,9 +144,6 @@ const Store = {
     }
   },
 
-  /**
-   * Subscribes a listener callback to state changes.
-   */
   subscribe(callback) {
     this.listeners.push(callback);
     return () => {
@@ -160,14 +151,11 @@ const Store = {
     };
   },
 
-  /**
-   * Saves current state to localStorage and notifies listeners.
-   */
   save() {
     try {
-      localStorage.setItem('arena_flow_state', JSON.stringify(this.state));
+      localStorage.setItem('arena_flow_state_v2', JSON.stringify(this.state));
     } catch (e) {
-      console.error('State persistence failed:', e);
+      console.error('State save failed:', e);
     }
     this.notify();
   },
@@ -177,18 +165,15 @@ const Store = {
       try {
         listener(this.state);
       } catch (e) {
-        console.error('Listener callback failed:', e);
+        console.error('State notify listener failed:', e);
       }
     }
   },
 
-  /**
-   * Reset store to default state.
-   */
   reset() {
     this.state = JSON.parse(JSON.stringify(DEFAULT_STATE));
     this.save();
-    window.Security.AuditLogger.log('RESET_STORE', 'System Admin', 'SUCCESS', 'Application store reset to factory defaults.');
+    window.Security.AuditLogger.log('RESET_STORE', 'System Admin', 'SUCCESS', 'Application store reset to FIFA World Cup 2026 default presets.');
   },
 
   // State Mutators
@@ -230,7 +215,7 @@ const Store = {
     }
   },
 
-  // --- Incidents ---
+  // --- Incidents (Linked to path blocking) ---
   reportIncident(type, location, description, severity) {
     const newIncident = {
       id: 'inc-' + Math.floor(100 + Math.random() * 900),
@@ -244,7 +229,13 @@ const Store = {
     };
     this.state.incidents.push(newIncident);
     this.save();
-    window.Security.AuditLogger.log('REPORT_INCIDENT', 'Fan Portal', 'SUCCESS', `New incident reported: [${severity}] ${type} at ${location}`);
+    window.Security.AuditLogger.log('REPORT_INCIDENT', 'Safety System', 'SUCCESS', `Incident ticket created: [${severity}] ${type} at ${location}`);
+    
+    // Check if incident blocks a navigation node (e.g. Stairwell-3)
+    if (window.Router) {
+      window.Router.updateBlockedNodes(this.state.incidents);
+    }
+    
     return newIncident;
   },
 
@@ -263,7 +254,12 @@ const Store = {
     if (incident) {
       incident.status = 'Resolved';
       this.save();
-      window.Security.AuditLogger.log('RESOLVE_INCIDENT', 'Dispatcher', 'SUCCESS', `Incident ${incidentId} resolved`);
+      window.Security.AuditLogger.log('RESOLVE_INCIDENT', 'Dispatcher', 'SUCCESS', `Incident ${incidentId} marked resolved`);
+      
+      // Update router block list
+      if (window.Router) {
+        window.Router.updateBlockedNodes(this.state.incidents);
+      }
     }
   },
 
@@ -293,7 +289,7 @@ const Store = {
     }
   },
 
-  // --- Sensors / Crowd Management ---
+  // --- Automated Warnings ---
   triggerRerouteAlert(gateId, targetRouteName) {
     const gate = this.state.sensors.gates.find(g => g.id === gateId);
     if (gate) {
@@ -309,9 +305,9 @@ const Store = {
         timestamp: new Date().toISOString()
       };
       
-      this.state.announcements.unshift(newAnn); // add to top
+      this.state.announcements.unshift(newAnn);
       this.save();
-      window.Security.AuditLogger.log('TRIGGER_REDirection', 'TOC Automated Agent', 'SUCCESS', `Dynamic redirection triggered for ${gate.name} -> ${targetRouteName}`);
+      window.Security.AuditLogger.log('TRIGGER_REDIRECTION', 'TOC Automated Agent', 'SUCCESS', `Dynamic redirection triggered for ${gate.name} -> ${targetRouteName}`);
     }
   },
 
@@ -322,7 +318,20 @@ const Store = {
       this.save();
       window.Security.AuditLogger.log('CLEAR_SENSOR_ALERT', 'TOC System', 'SUCCESS', `Congestion alert cleared for ${gate.name}`);
     }
+  },
+
+  // --- Aura AI Chat History Updates ---
+  addChatMessage(roleType, sender, text) {
+    const historyKey = roleType === 'fan' ? 'fanChatHistory' : 'operatorChatHistory';
+    this.state[historyKey].push({ sender, text: window.Security.sanitizeHtml(text) });
+    
+    // Maintain maximum 100 entries for storage optimization
+    if (this.state[historyKey].length > 100) {
+      this.state[historyKey].shift();
+    }
+    this.save();
   }
 };
 
+window.STADIUM_CONFIG = STADIUM_CONFIG;
 window.Store = Store;

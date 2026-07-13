@@ -3,6 +3,8 @@
  * Verifies NLU query parsers, Dijkstra hazard rerouting, PIN authenticators, and form rate limiters.
  */
 
+"use strict";
+
 const TestSuite = {
   assert(condition, message) {
     if (!condition) {
@@ -25,36 +27,36 @@ const TestSuite = {
       TestSuite.assertEqual(actual, expected, 'Should sanitize script tags completely');
     },
 
-    'Security.Auth verifies valid/invalid role PINs': function() {
-      // Clean previous session state
+    'Security.Auth verifies valid/invalid role PINs': async function() {
       sessionStorage.removeItem('arena_flow_toc_auth');
       
-      // Test invalid PIN
-      const fail = window.Security.Auth.verifyPIN('wrong123', 'operator');
+      const fail = await window.Security.Auth.verifyPIN('wrong123', 'operator');
       TestSuite.assertEqual(fail, false, 'Invalid PIN should return false');
       TestSuite.assertEqual(window.Security.Auth.isAuthorized('operator'), false, 'Should not be authorized');
 
-      // Test valid PIN
-      const pass = window.Security.Auth.verifyPIN('admin789', 'operator');
+      const pass = await window.Security.Auth.verifyPIN('admin789', 'operator');
       TestSuite.assertEqual(pass, true, 'Valid PIN should return true');
       TestSuite.assertEqual(window.Security.Auth.isAuthorized('operator'), true, 'Should now be authorized');
       
-      // Logout
       window.Security.Auth.logout('operator');
       TestSuite.assertEqual(window.Security.Auth.isAuthorized('operator'), false, 'Should be unauthorized after logout');
     },
 
     'Security.RateLimiter blocks flood submissions': function() {
-      // Clear limiter history
       window.Security.RateLimiter.history['test_key'] = [];
 
-      // Submit 3 times (should pass)
       TestSuite.assertEqual(window.Security.RateLimiter.checkLimit('test_key', 3, 5), true);
       TestSuite.assertEqual(window.Security.RateLimiter.checkLimit('test_key', 3, 5), true);
       TestSuite.assertEqual(window.Security.RateLimiter.checkLimit('test_key', 3, 5), true);
 
-      // 4th time should be rate-limited (blocked)
       TestSuite.assertEqual(window.Security.RateLimiter.checkLimit('test_key', 3, 5), false, '4th consecutive call must be blocked');
+    },
+
+    'Security.Csprng generates secure random IDs': function() {
+      const id1 = window.Security.Csprng.generateId('test');
+      const id2 = window.Security.Csprng.generateId('test');
+      TestSuite.assert(id1.startsWith('test-'), 'ID should start with prefix');
+      TestSuite.assert(id1 !== id2, 'Two secure random IDs should not be equal');
     },
 
     // --- State Tests ---
@@ -67,7 +69,6 @@ const TestSuite = {
     'Store.reportIncident blocks node in Router': function() {
       window.Store.init();
       
-      // Report incident at Stairwell-3
       const inc = window.Store.reportIncident(
         'Spill', 
         'Stairwell-3', 
@@ -77,53 +78,53 @@ const TestSuite = {
       
       TestSuite.assert(window.Router.blockedNodes.has('Stairwell-3'), 'Stairwell-3 node should be blocked in router');
 
-      // Resolve it
       window.Store.resolveIncident(inc.id);
       TestSuite.assert(!window.Router.blockedNodes.has('Stairwell-3'), 'Stairwell-3 should be unblocked after resolution');
     },
 
     // --- Dijkstra Hazard Rerouting Tests ---
     'Dijkstra pathfinder routes around blocked nodes': function() {
-      // Clean blocks
       window.Router.blockedNodes.clear();
 
-      // standard path from Block 102 to Gate A
       const stdRoute = window.Router.findShortestPath('Block-102', 'Gate-A', false);
       TestSuite.assert(stdRoute.path.includes('Stairwell-3'), 'Standard path should naturally route through Stairwell-3');
 
-      // Block Stairwell-3 (due to hazard)
       window.Router.blockedNodes.add('Stairwell-3');
 
-      // Recalculate path
       const newRoute = window.Router.findShortestPath('Block-102', 'Gate-A', false);
       TestSuite.assert(!newRoute.path.includes('Stairwell-3'), 'Recalculated path must avoid Stairwell-3');
       TestSuite.assert(newRoute.path.includes('Elevator-East'), 'Path should reroute through Elevator-East');
       TestSuite.assertEqual(newRoute.rerouted, true, 'Rerouted flag should be true');
 
-      // Reset
       window.Router.blockedNodes.clear();
     },
 
     // --- Aura AI NLU chatbot Tests ---
-    'AuraAI chatbot parses pathfinding query': function() {
+    'AuraAI chatbot parses pathfinding query': async function() {
       const textQuery = 'how do I get from Block 102 to Gate C';
-      const reply = AuraAI.processFanQuery(textQuery);
+      const reply = await AuraAI.processFanQuery(textQuery);
       
       TestSuite.assert(reply.includes('Calculated navigation route'), 'Should parse as pathfinding command');
       TestSuite.assert(reply.includes('Block-102'), 'Path start should match block input');
     },
 
-    'AuraAI chatbot parses concession orders': function() {
+    'AuraAI chatbot parses concession orders': async function() {
       const textQuery = 'order a burger to Block 104';
       const beforeCount = window.Store.state.concessions.length;
       
-      const reply = AuraAI.processFanQuery(textQuery);
+      const reply = await AuraAI.processFanQuery(textQuery);
       TestSuite.assert(reply.includes('Order placed successfully'), 'Should place concession order');
       TestSuite.assertEqual(window.Store.state.concessions.length, beforeCount + 1, 'Store concessions count should grow');
+    },
+
+    'AuraAI chatbot parses translation query': async function() {
+      const textQuery = 'translate announcements to Spanish';
+      const reply = await AuraAI.processFanQuery(textQuery);
+      TestSuite.assert(reply.includes('Anuncios del estadio traducidos al español'), 'Should confirm translation to Spanish');
     }
   },
 
-  run() {
+  async run() {
     const report = {
       total: 0,
       passed: 0,
@@ -135,7 +136,7 @@ const TestSuite = {
       report.total++;
       const startTime = performance.now();
       try {
-        testFn();
+        await testFn();
         const duration = (performance.now() - startTime).toFixed(2);
         report.passed++;
         report.results.push({

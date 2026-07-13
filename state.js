@@ -3,13 +3,12 @@
  * FIFA World Cup 2026 edition. Manages reactive state with local persistence.
  */
 
-// Immutable configuration data (Security: Prevents prototype pollution/modification)
+"use strict";
+
 const STADIUM_CONFIG = Object.freeze({
   name: 'MetLife Stadium (East Rutherford, NJ)',
   tournament: 'FIFA World Cup 2026',
-  hostCities: ['East Rutherford', 'Mexico City', 'Vancouver', 'Miami'],
-  adminPin: 'admin789',
-  diagPin: 'tech456'
+  hostCities: Object.freeze(['East Rutherford', 'Mexico City', 'Vancouver', 'Miami'])
 });
 
 const DEFAULT_STATE = {
@@ -113,7 +112,6 @@ const DEFAULT_STATE = {
       timestamp: new Date(Date.now() - 15 * 60000).toISOString()
     }
   ],
-  // Simulated chat histories for Aura AI
   fanChatHistory: [
     { sender: 'aura', text: 'Hello! I am Aura, your FIFA World Cup 2026 Smart Stadium assistant. How can I help you navigate the arena, order concessions, or report safety issues today?' }
   ],
@@ -128,10 +126,9 @@ const Store = {
 
   init() {
     try {
-      const saved = localStorage.getItem('arena_flow_state_v2');
+      const saved = localStorage.getItem('arena_flow_state_v3');
       if (saved) {
         this.state = JSON.parse(saved);
-        // Ensure chat histories exist
         if (!this.state.fanChatHistory) this.state.fanChatHistory = [...DEFAULT_STATE.fanChatHistory];
         if (!this.state.operatorChatHistory) this.state.operatorChatHistory = [...DEFAULT_STATE.operatorChatHistory];
       } else {
@@ -153,7 +150,7 @@ const Store = {
 
   save() {
     try {
-      localStorage.setItem('arena_flow_state_v2', JSON.stringify(this.state));
+      localStorage.setItem('arena_flow_state_v3', JSON.stringify(this.state));
     } catch (e) {
       console.error('State save failed:', e);
     }
@@ -181,7 +178,7 @@ const Store = {
   // --- Matches ---
   addMatch(matchData) {
     const newMatch = {
-      id: 'match-' + Math.random().toString(36).substr(2, 9),
+      id: window.Security.Csprng.generateId('match'),
       ...matchData,
       teamA: { ...matchData.teamA, score: parseInt(matchData.teamA.score) || 0 },
       teamB: { ...matchData.teamB, score: parseInt(matchData.teamB.score) || 0 }
@@ -218,7 +215,7 @@ const Store = {
   // --- Incidents (Linked to path blocking) ---
   reportIncident(type, location, description, severity) {
     const newIncident = {
-      id: 'inc-' + Math.floor(100 + Math.random() * 900),
+      id: window.Security.Csprng.generateId('inc'),
       type,
       location: window.Security.sanitizeHtml(location),
       description: window.Security.sanitizeHtml(description),
@@ -266,7 +263,7 @@ const Store = {
   // --- Concessions ---
   placeOrder(seat, items) {
     const newOrder = {
-      id: 'ord-' + Math.floor(500 + Math.random() * 500),
+      id: window.Security.Csprng.generateId('ord'),
       seat: window.Security.sanitizeHtml(seat),
       items: window.Security.sanitizeHtml(items),
       status: 'Received',
@@ -298,7 +295,7 @@ const Store = {
       const alertContent = `High congestion detected at ${gate.name}. Please follow signs to redirect entry/exit via ${targetRouteName}.`;
       
       const newAnn = {
-        id: 'ann-' + Math.random().toString(36).substr(2, 9),
+        id: window.Security.Csprng.generateId('ann'),
         title: alertTitle,
         content: alertContent,
         type: 'Critical',
@@ -325,7 +322,6 @@ const Store = {
     const historyKey = roleType === 'fan' ? 'fanChatHistory' : 'operatorChatHistory';
     this.state[historyKey].push({ sender, text: window.Security.sanitizeHtml(text) });
     
-    // Maintain maximum 100 entries for storage optimization
     if (this.state[historyKey].length > 100) {
       this.state[historyKey].shift();
     }

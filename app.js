@@ -1,22 +1,73 @@
 /**
  * ArenaFlow Pro — Controller & Aura AI Assistant
+ * FIFA World Cup 2026 Edition.
  * Orchestrates event handling, role authorizations, dynamic rerouting UI, and NLU parsing.
  */
+
+"use strict";
+
+// Predefined translation mappings for World Cup multilingual operations (USA / Mexico / Canada)
+const TRANSLATION_DB = Object.freeze({
+  es: {
+    title: 'Aviso de Congestión en la Puerta C',
+    content: 'La Puerta C está sumamente congestionada. Se recomienda a los aficionados llegar/salir por la Puerta D (Oeste) o la Puerta A (Norte) para un tránsito más rápido.',
+    confirm: 'Anuncios del estadio traducidos al español para los aficionados de México.',
+    no_alert: 'No hay alertas de transmisiones activas en este momento.'
+  },
+  fr: {
+    title: 'Avis de Congestion à la Porte C',
+    content: 'La porte C est fortement encombrée. Nous recommandons vivement aux supporters d\'arriver/de sortir par la porte D (Ouest) ou la porte A (Nord) pour un transit plus rapide.',
+    confirm: 'Annonces du stade traduites en français pour les supporters du Canada.',
+    no_alert: 'Aucune alerte de diffusion active pour le moment.'
+  }
+});
 
 // --- Aura AI Natural Language Parser (NLU) ---
 const AuraAI = {
   /**
    * Processes a natural language text query from a fan.
    * @param {string} rawText - Message text
-   * @returns {string} Response text
+   * @returns {Promise<string>} Response text
    */
-  processFanQuery(rawText) {
+  async processFanQuery(rawText) {
     const text = rawText.toLowerCase().trim();
 
-    // 1. Check for pathfinding queries
-    // e.g., "get from Block-102 to Gate-A", "route from block 104 to gate c"
+    // 1. Multilingual translation request
+    // e.g. "translate to spanish", "traduzca al espanol", "translate french"
+    if (text.includes('translate') || text.includes('spanish') || text.includes('french') || text.includes('espanol')) {
+      let langCode = 'es';
+      let langName = 'Spanish';
+      if (text.includes('french') || text.includes('fr')) {
+        langCode = 'fr';
+        langName = 'French';
+      }
+
+      const activeAnn = window.Store.state.announcements;
+      if (activeAnn.length === 0) {
+        return `Aura AI: ${TRANSLATION_DB[langCode].no_alert}`;
+      }
+
+      // Render translated alert list in UI
+      const listEl = document.getElementById('announcements-list');
+      if (listEl) {
+        listEl.innerHTML = `
+          <div class="alert-banner alert-banner-warning" role="alert">
+            <div style="font-size:1.1rem;">🌐</div>
+            <div style="flex-grow:1;">
+              <div style="font-weight:800; font-size:0.85rem;">[${langName}] ${window.Security.sanitizeHtml(TRANSLATION_DB[langCode].title)}</div>
+              <div style="margin-top:0.2rem; color:var(--text-primary); font-size:0.8rem;">${window.Security.sanitizeHtml(TRANSLATION_DB[langCode].content)}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      window.Security.AuditLogger.log('TRANSLATE_ALERTS', 'Fan Portal', 'SUCCESS', `Announcements translated to ${langName}.`);
+      return `🌐 ${TRANSLATION_DB[langCode].confirm}`;
+    }
+
+    // 2. Check for pathfinding queries
     if (text.includes('path') || text.includes('route') || text.includes('direction') || text.includes('get to') || text.includes('exit')) {
-      let startBlock = 'Block-102'; // default fallback
+      let startBlock = 'Block-102';
       if (text.includes('102')) startBlock = 'Block-102';
       else if (text.includes('104')) startBlock = 'Block-104';
       else if (text.includes('212')) startBlock = 'Block-212';
@@ -29,11 +80,9 @@ const AuraAI = {
 
       const stepFree = text.includes('step-free') || text.includes('accessible') || text.includes('elevator') || text.includes('lift') || text.includes('wheelchair');
 
-      // Call Pathfinder
       const routeResult = window.Router.findShortestPath(startBlock, endGate, stepFree);
       const instructions = window.Router.generateInstructions(routeResult.path);
       
-      // Update Seating selector input values in the UI to match chatbot command
       const selectBlock = document.getElementById('nav-start-block');
       const selectGate = document.getElementById('nav-end-gate');
       const toggleAccess = document.getElementById('nav-accessible-toggle');
@@ -41,7 +90,6 @@ const AuraAI = {
       if (selectGate) selectGate.value = endGate;
       if (toggleAccess) toggleAccess.checked = stepFree;
 
-      // Update instructions on UI
       window.AppController.renderPathOutput(instructions, routeResult.rerouted);
 
       let response = `Calculated navigation route from ${startBlock} to ${endGate}. `;
@@ -53,11 +101,9 @@ const AuraAI = {
       return response;
     }
 
-    // 2. Check for food ordering queries
-    // e.g., "order a burger to Block-104", "buy popcorn at block 102"
+    // 3. Check for food ordering queries
     if (text.includes('order') || text.includes('burger') || text.includes('popcorn') || text.includes('nachos') || text.includes('food')) {
-      let seat = 'Block-104, Row G, Seat 9'; // default
-      // Match block in text
+      let seat = 'Block-104, Row G, Seat 9';
       if (text.includes('102')) seat = 'Block-102, Row B, Seat 3';
       else if (text.includes('212')) seat = 'Block-212, Row C, Seat 4';
 
@@ -71,8 +117,7 @@ const AuraAI = {
       return `🍔 Order placed successfully! Your "${item}" has been registered. Order ID: #${order.id}. Delivery runner will bring it to ${seat}.`;
     }
 
-    // 3. Check for incident reporting queries
-    // e.g., "report a spill at Block-102", "medical issue at stairwell 3"
+    // 4. Check for incident reporting queries
     if (text.includes('report') || text.includes('spill') || text.includes('hazard') || text.includes('medical') || text.includes('broken')) {
       let location = 'Block-104';
       if (text.includes('102')) location = 'Block-102';
@@ -92,34 +137,32 @@ const AuraAI = {
       return `🚨 Safety Ticket #${inc.id} created! Reported a "${type}" hazard at location: ${location}. Our stadium control room has dispatched a responder.`;
     }
 
-    // Standard responses
     if (text.includes('hello') || text.includes('hi') || text.includes('hey')) {
-      return "Hi there! I am Aura, your FIFA World Cup 2026 digital stadium assistant. How can I help you today? You can ask for directions (e.g. 'Route from Block 102 to Gate C'), order food, or report safety issues.";
+      return "Hi there! I am Aura, your FIFA World Cup 2026 digital stadium assistant. How can I help you navigate the arena, translate alerts, order food, or report safety issues today?";
     }
 
     if (text.includes('stadium') || text.includes('metlife') || text.includes('world cup')) {
       return "Welcome to MetLife Stadium, hosting the FIFA World Cup 2026! We have advanced IoT gate tracking, accessible routes, and 4 gates (Gates A-D) open for your convenience.";
     }
 
-    return "I didn't quite catch that. You can ask me for directions (e.g., 'route from Block 102 to Gate C step-free'), order concession sets, or report incident hazards like spills.";
+    return "I didn't quite catch that. You can ask me for directions (e.g., 'route from Block 102 to Gate C step-free'), translate announcements ('translate to Spanish'), or report spills.";
   },
 
   /**
    * Processes operational queries from stadium coordinators.
    * @param {string} rawText - Message text
-   * @returns {string} Response text
+   * @returns {Promise<string>} Response text
    */
-  processOperatorQuery(rawText) {
+  async processOperatorQuery(rawText) {
     const text = rawText.toLowerCase().trim();
 
     // Enforce administrative check
     if (!window.Security.Auth.isAuthorized('operator')) {
-      // Check if user is attempting to enter PIN in chat
       if (text.includes('pin:') || text.includes('pin ')) {
         const pin = text.replace('pin:', '').replace('pin', '').trim();
-        const success = window.Security.Auth.verifyPIN(pin, 'operator');
+        const success = await window.Security.Auth.verifyPIN(pin, 'operator');
         if (success) {
-          window.AppController.renderAuthOverlay(); // update overlay
+          window.AppController.renderAuthOverlay();
           return "🔑 PIN Verified successfully! Administrative commands unlocked. You can now schedule games, check gate flows, or audit tickets.";
         } else {
           return "❌ Authentication failed. Incorrect PIN code entered.";
@@ -130,7 +173,6 @@ const AuraAI = {
 
     // 1. Handle match scheduling
     if (text.includes('schedule') || text.includes('match') || text.includes('game')) {
-      // Simple parser: "schedule Germany vs Brazil"
       let teamA = 'Germany';
       let teamB = 'Brazil';
       if (text.includes('usa') || text.includes('mexico')) {
@@ -192,7 +234,6 @@ class ArenaFlowController {
   init() {
     window.Store.init();
 
-    // Synchronize initial graph state with reported incidents
     window.Router.updateBlockedNodes(window.Store.state.incidents);
 
     this.bindEvents();
@@ -335,12 +376,10 @@ class ArenaFlowController {
   }
 
   switchRole(role) {
-    // If attempting to access operator or diagnostics, verify authorization first
     if ((role === 'operator' || role === 'diagnostics') && !window.Security.Auth.isAuthorized(role)) {
-      this.pendingRoleSwitch = role; // cache target role
+      this.pendingRoleSwitch = role; 
       this.activeRole = role; 
       
-      // Update active nav styling
       document.querySelectorAll('.role-tab').forEach(tab => {
         tab.classList.remove('active');
         if (tab.getAttribute('data-role') === role) tab.classList.add('active');
@@ -353,7 +392,6 @@ class ArenaFlowController {
     this.activeRole = role;
     this.pendingRoleSwitch = null;
 
-    // Toggle nav active tags
     document.querySelectorAll('.role-tab').forEach(tab => {
       if (tab.getAttribute('data-role') === role) {
         tab.classList.add('active');
@@ -364,7 +402,6 @@ class ArenaFlowController {
       }
     });
 
-    // Toggle view overlays
     document.querySelectorAll('.view-panel').forEach(panel => {
       if (panel.id === `${role}-panel`) {
         panel.classList.add('active');
@@ -377,12 +414,11 @@ class ArenaFlowController {
     window.Security.AuditLogger.log('SWITCH_VIEW_ROLE', 'User', 'SUCCESS', `Entered ${role} role interface.`);
   }
 
-  handlePinSubmit() {
+  async handlePinSubmit() {
     const inputPin = document.getElementById('auth-pin-input');
     if (!inputPin) return;
     const pin = inputPin.value;
 
-    // Validate length/format
     const valResult = window.Security.validateField(pin, {
       required: true,
       pattern: window.Security.Patterns.PIN,
@@ -395,11 +431,11 @@ class ArenaFlowController {
     }
 
     const role = this.pendingRoleSwitch || this.activeRole;
-    const isSuccess = window.Security.Auth.verifyPIN(pin, role);
+    const isSuccess = await window.Security.Auth.verifyPIN(pin, role);
 
     if (isSuccess) {
       inputPin.value = '';
-      this.switchRole(role); // resume switch
+      this.switchRole(role); 
     } else {
       alert('Invalid PIN code entered. Access Denied.');
     }
@@ -412,13 +448,11 @@ class ArenaFlowController {
     window.Security.AuditLogger.log('TICKET_SCAN_TRIGGER', 'Fan Terminal', 'SUCCESS', 'Scanning digital World Cup ticket...');
 
     setTimeout(() => {
-      // Auto populate Fan view navigation controls
       const selectBlock = document.getElementById('nav-start-block');
       const orderSeat = document.getElementById('order-seat');
       if (selectBlock) selectBlock.value = 'Block-104';
       if (orderSeat) orderSeat.value = 'Block-104, Row G, Seat 9';
 
-      // Greets user in Aura chat
       window.Store.addChatMessage('fan', 'user', '[Simulated Ticket Scan]');
       window.Store.addChatMessage('fan', 'aura', '🎟️ Ticket Verified! Welcome to MetLife Stadium. You are registered in Block 104. I have automatically configured your seat route. How can I assist you today?');
 
@@ -441,25 +475,22 @@ class ArenaFlowController {
       return;
     }
 
-    // Rate Limiting (Security check: prevents spamming chat)
     const ipKey = `${roleType}_chat_ip`;
-    const allowed = window.Security.RateLimiter.checkLimit(ipKey, 5, 20); // max 5 chats per 20 seconds
+    const allowed = window.Security.RateLimiter.checkLimit(ipKey, 5, 20); 
     if (!allowed) {
       alert('Rate limit exceeded. Please wait a few seconds before messaging Aura AI again.');
       return;
     }
 
-    // Record user chat in store
     window.Store.addChatMessage(roleType, 'user', text);
     input.value = '';
 
-    // Typing delay simulator for realistic AI assistant response
-    setTimeout(() => {
+    setTimeout(async () => {
       let aiResponse = '';
       if (roleType === 'fan') {
-        aiResponse = AuraAI.processFanQuery(text);
+        aiResponse = await AuraAI.processFanQuery(text);
       } else {
-        aiResponse = AuraAI.processOperatorQuery(text);
+        aiResponse = await AuraAI.processOperatorQuery(text);
       }
       window.Store.addChatMessage(roleType, 'aura', aiResponse);
     }, 600);
@@ -475,7 +506,6 @@ class ArenaFlowController {
     this.renderHeatmapDetail();
     this.renderAuditLogs();
     
-    // Render Chat Histories
     this.renderChatMessages('fan', state.fanChatHistory);
     this.renderChatMessages('operator', state.operatorChatHistory);
   }
@@ -505,13 +535,13 @@ class ArenaFlowController {
       const senderName = msg.sender === 'aura' ? 'Aura AI' : 'You';
       return `
         <div class="chat-bubble ${bubbleClass}">
-          <div style="font-weight:700; font-size:0.75rem; margin-bottom:0.15rem; color:var(--text-muted)">${senderName}</div>
-          <div>${msg.text}</div>
+          <div style="font-weight:700; font-size:0.75rem; margin-bottom:0.15rem; color:var(--text-muted)">${window.Security.sanitizeHtml(senderName)}</div>
+          <div>${window.Security.sanitizeHtml(msg.text)}</div>
         </div>
       `;
     }).join('');
 
-    chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight; // auto scroll
+    chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight; 
   }
 
   renderMatches(matches) {
@@ -524,7 +554,6 @@ class ArenaFlowController {
     if (operatorMatchesList) {
       operatorMatchesList.innerHTML = matches.map(match => this.createMatchHtml(match, true)).join('');
       
-      // Bind inline scoring buttons
       operatorMatchesList.querySelectorAll('.btn-score-up').forEach(btn => {
         btn.addEventListener('click', (e) => {
           const matchId = e.currentTarget.getAttribute('data-match-id');
@@ -534,7 +563,6 @@ class ArenaFlowController {
         });
       });
 
-      // Bind status changes
       operatorMatchesList.querySelectorAll('.select-match-status').forEach(select => {
         select.addEventListener('change', (e) => {
           const matchId = e.target.getAttribute('data-match-id');
@@ -557,13 +585,15 @@ class ArenaFlowController {
     const cleanTeamA = window.Security.sanitizeHtml(match.teamA.name);
     const cleanTeamB = window.Security.sanitizeHtml(match.teamB.name);
     const cleanTime = window.Security.sanitizeHtml(match.time);
+    const cleanId = window.Security.sanitizeHtml(match.id);
+    const cleanStatus = window.Security.sanitizeHtml(match.status);
 
     if (isOperator) {
       return `
-        <div class="match-item" data-match-id="${match.id}">
+        <div class="match-item" data-match-id="${cleanId}">
           <div class="match-meta">
             <span>${cleanTournament} | ${cleanVenue}</span>
-            <select class="select-match-status" data-match-id="${match.id}" aria-label="Status select">
+            <select class="select-match-status" data-match-id="${cleanId}" aria-label="Status select for match vs ${cleanTeamA}">
               <option value="SCHEDULED" ${match.status === 'SCHEDULED' ? 'selected' : ''}>Scheduled</option>
               <option value="LIVE" ${match.status === 'LIVE' ? 'selected' : ''}>Live</option>
               <option value="COMPLETED" ${match.status === 'COMPLETED' ? 'selected' : ''}>Completed</option>
@@ -585,12 +615,12 @@ class ArenaFlowController {
             </div>
           </div>
           <div class="match-controls">
-            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="A" data-delta="1">+1 ${cleanTeamA}</button>
-            <button class="btn btn-secondary btn-score-up" data-match-id="${match.id}" data-team="B" data-delta="1">+1 ${cleanTeamB}</button>
+            <button class="btn btn-secondary btn-score-up" data-match-id="${cleanId}" data-team="A" data-delta="1">+1 ${cleanTeamA}</button>
+            <button class="btn btn-secondary btn-score-up" data-match-id="${cleanId}" data-team="B" data-delta="1">+1 ${cleanTeamB}</button>
             <span style="flex-grow:1;"></span>
             <input type="text" value="${cleanTime}" class="match-time-input" 
-              style="width: 80px; text-align: center; padding: 0.2rem;" aria-label="Clock"
-              onchange="window.Store.updateMatchStatus('${match.id}', '${match.status}', this.value)"/>
+              style="width: 80px; text-align: center; padding: 0.2rem;" aria-label="Game Clock input for match vs ${cleanTeamA}"
+              onchange="window.Store.updateMatchStatus('${cleanId}', '${cleanStatus}', this.value)"/>
           </div>
         </div>
       `;
@@ -599,7 +629,7 @@ class ArenaFlowController {
         <div class="match-item">
           <div class="match-meta">
             <span>${cleanTournament} | ${cleanVenue}</span>
-            <span class="match-status-badge ${statusClass}">${match.status}</span>
+            <span class="match-status-badge ${statusClass}">${cleanStatus}</span>
           </div>
           <div class="match-scoreline">
             <div class="team-info">
@@ -641,9 +671,9 @@ class ArenaFlowController {
 
       let actions = '';
       if (inc.status === 'Open') {
-        actions = `<button class="btn btn-secondary btn-assign-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;">Assign Staff</button>`;
+        actions = `<button class="btn btn-secondary btn-assign-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;" aria-label="Assign dispatcher for incident #${cleanId}">Assign Staff</button>`;
       } else if (inc.status === 'Assigned') {
-        actions = `<button class="btn btn-success btn-resolve-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;">Resolve</button>`;
+        actions = `<button class="btn btn-success btn-resolve-inc" data-incident-id="${cleanId}" style="padding:0.3rem 0.5rem; font-size:0.75rem;" aria-label="Resolve incident #${cleanId}">Resolve</button>`;
       } else {
         actions = `<span style="color: var(--color-primary); font-weight:700;">✓ Resolved</span>`;
       }
@@ -662,7 +692,6 @@ class ArenaFlowController {
       `;
     }).join('');
 
-    // Action bindings
     tableBody.querySelectorAll('.btn-assign-inc').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const incId = e.target.getAttribute('data-incident-id');
@@ -698,11 +727,11 @@ class ArenaFlowController {
 
         let actionButtons = '';
         if (ord.status === 'Received') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Preparing" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Prepare</button>`;
+          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Preparing" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Prepare order #${cleanId}">Prepare</button>`;
         } else if (ord.status === 'Preparing') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Dispatched" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Dispatch</button>`;
+          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Dispatched" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Dispatch order #${cleanId}">Dispatch</button>`;
         } else if (ord.status === 'Dispatched') {
-          actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${cleanId}" data-action="Delivered" style="padding:0.25rem 0.5rem; font-size:0.75rem;">Mark Delivered</button>`;
+          actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${cleanId}" data-action="Delivered" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Deliver order #${cleanId}">Mark Delivered</button>`;
         } else {
           actionButtons = `<span style="color: var(--color-primary); font-weight:700;">✓ Delivered</span>`;
         }
@@ -823,7 +852,7 @@ class ArenaFlowController {
           ${isCritical ? `
             <div style="margin-top:0.6rem; color:var(--color-danger); font-size:0.75rem; font-weight:700;">⚠️ Gate Congestion Critical</div>
           ` : gate.alert === 'Moderate' ? `
-            <button class="btn btn-warning" style="width:100%; font-size:0.75rem; padding:0.3rem; margin-top:0.6rem;" onclick="window.Store.triggerRerouteAlert('${gate.id}', 'Gate D (West)')">
+            <button class="btn btn-warning" style="width:100%; font-size:0.75rem; padding:0.3rem; margin-top:0.6rem;" onclick="window.Store.triggerRerouteAlert('${gate.id}', 'Gate D (West)')" aria-label="Reroute Gate ${cleanName}">
               Trigger Rerouting
             </button>
           ` : `
@@ -890,16 +919,13 @@ class ArenaFlowController {
     const endGate = selectGate.value;
     const stepFree = toggleAccessible ? toggleAccessible.checked : false;
 
-    // Run Pathfinder
     const result = window.Router.findShortestPath(startBlock, endGate, stepFree);
     const steps = window.Router.generateInstructions(result.path);
 
     this.currentNavInstructions = steps.map(s => s.action).join('. ');
 
-    // Render output
     this.renderPathOutput(steps, result.rerouted);
 
-    // Update accessibility live region
     const liveRegion = document.getElementById('sr-live-route-announcement');
     if (liveRegion) {
       liveRegion.textContent = `Route computed. ${steps.length} steps. First: ${steps[0].action}`;
@@ -915,7 +941,6 @@ class ArenaFlowController {
 
     if (!resultsContainer) return;
 
-    // Render hazard alert banner if rerouted
     if (pathAlertContainer) {
       if (rerouted) {
         pathAlertContainer.innerHTML = `
@@ -975,7 +1000,6 @@ class ArenaFlowController {
       return;
     }
 
-    // Rate limit check
     if (!window.Security.RateLimiter.checkLimit('concession_order', 2, 30)) {
       alert('Too many concession orders. Please wait 30 seconds before placing another order.');
       return;
@@ -1028,7 +1052,6 @@ class ArenaFlowController {
       return;
     }
 
-    // Rate Limit check
     if (!window.Security.RateLimiter.checkLimit('incident_report', 3, 60)) {
       alert('Rate limit exceeded. Please wait 60 seconds before submitting another incident.');
       return;
@@ -1139,8 +1162,8 @@ class ArenaFlowController {
     writeLog('==================================================', 'diag-header');
     writeLog('Initializing secure test sandbox...', 'diag-log-line');
 
-    setTimeout(() => {
-      const report = window.TestSuite.run();
+    setTimeout(async () => {
+      const report = await window.TestSuite.run();
       
       report.results.forEach(res => {
         if (res.success) {

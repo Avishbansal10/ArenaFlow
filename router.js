@@ -3,6 +3,8 @@
  * Handles seat-to-gate pathfinding with dynamic node blocking (hazard rerouting).
  */
 
+"use strict";
+
 const Router = {
   // Seating blocks, access tunnels, lifts, and exits
   GraphData: {

@@ -231,6 +231,20 @@ class ArenaFlowController {
     this.currentNavInstructions = '';
   }
 
+  setLoadingState(buttonId, isLoading, defaultText, loadingText = 'Submitting...') {
+    const btn = document.getElementById(buttonId);
+    if (!btn) return;
+    if (isLoading) {
+      btn.disabled = true;
+      btn.classList.add('btn-loading');
+      btn.textContent = loadingText;
+    } else {
+      btn.disabled = false;
+      btn.classList.remove('btn-loading');
+      btn.textContent = defaultText;
+    }
+  }
+
   init() {
     window.Store.init();
 
@@ -376,6 +390,21 @@ class ArenaFlowController {
     window.addEventListener('auditlogadded', () => {
       this.renderAuditLogs();
     });
+
+    // 15. Scroll-to-top button handler
+    const btnScroll = document.getElementById('btn-scroll-top');
+    if (btnScroll) {
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 300) {
+          btnScroll.style.display = 'flex';
+        } else {
+          btnScroll.style.display = 'none';
+        }
+      });
+      btnScroll.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
   }
 
   switchRole(role) {
@@ -918,23 +947,28 @@ class ArenaFlowController {
 
     if (!selectBlock || !selectGate || !resultsContainer) return;
 
-    const startBlock = selectBlock.value;
-    const endGate = selectGate.value;
-    const stepFree = toggleAccessible ? toggleAccessible.checked : false;
+    this.setLoadingState('btn-routing-submit', true, 'Calculate Path', 'Calculating...');
 
-    const result = window.Router.findShortestPath(startBlock, endGate, stepFree);
-    const steps = window.Router.generateInstructions(result.path);
+    setTimeout(() => {
+      const startBlock = selectBlock.value;
+      const endGate = selectGate.value;
+      const stepFree = toggleAccessible ? toggleAccessible.checked : false;
 
-    this.currentNavInstructions = steps.map(s => s.action).join('. ');
+      const result = window.Router.findShortestPath(startBlock, endGate, stepFree);
+      const steps = window.Router.generateInstructions(result.path);
 
-    this.renderPathOutput(steps, result.rerouted);
+      this.currentNavInstructions = steps.map(s => s.action).join('. ');
 
-    const liveRegion = document.getElementById('sr-live-route-announcement');
-    if (liveRegion) {
-      liveRegion.textContent = `Route computed. ${steps.length} steps. First: ${steps[0].action}`;
-    }
+      this.renderPathOutput(steps, result.rerouted);
 
-    window.Security.AuditLogger.log('CALCULATE_ROUTE', 'Fan Seat Finder', 'SUCCESS', `Route computed: ${startBlock} -> ${endGate} (Step-free: ${stepFree}, Rerouted: ${result.rerouted})`);
+      const liveRegion = document.getElementById('sr-live-route-announcement');
+      if (liveRegion) {
+        liveRegion.textContent = `Route computed. ${steps.length} steps. First: ${steps[0].action}`;
+      }
+
+      window.Security.AuditLogger.log('CALCULATE_ROUTE', 'Fan Seat Finder', 'SUCCESS', `Route computed: ${startBlock} -> ${endGate} (Step-free: ${stepFree}, Rerouted: ${result.rerouted})`);
+      this.setLoadingState('btn-routing-submit', false, 'Calculate Path');
+    }, 400);
   }
 
   renderPathOutput(steps, rerouted) {
@@ -1008,15 +1042,20 @@ class ArenaFlowController {
       return;
     }
 
-    const order = window.Store.placeOrder(seatVal, foodVal);
-    sessionStorage.setItem('last_placed_seat', seatVal);
-    
-    selectFood.selectedIndex = 0;
-    if (alertBox) {
-      alertBox.style.display = 'block';
-      alertBox.textContent = `Order placed successfully! Tracking ID: #${order.id}.`;
-      setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
-    }
+    this.setLoadingState('btn-concession-submit', true, 'Order Food Set', 'Placing Order...');
+
+    setTimeout(() => {
+      const order = window.Store.placeOrder(seatVal, foodVal);
+      sessionStorage.setItem('last_placed_seat', seatVal);
+      
+      selectFood.selectedIndex = 0;
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.textContent = `Order placed successfully! Tracking ID: #${order.id}.`;
+        setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
+      }
+      this.setLoadingState('btn-concession-submit', false, 'Order Food Set');
+    }, 500);
   }
 
   handleFanReportIncident() {
@@ -1060,16 +1099,21 @@ class ArenaFlowController {
       return;
     }
 
-    const inc = window.Store.reportIncident(typeVal, seatVal, descVal, severityVal);
+    this.setLoadingState('btn-incident-submit', true, 'File Incident Ticket', 'Filing Ticket...');
 
-    inputSeat.value = '';
-    textDesc.value = '';
+    setTimeout(() => {
+      const inc = window.Store.reportIncident(typeVal, seatVal, descVal, severityVal);
 
-    if (alertBox) {
-      alertBox.style.display = 'block';
-      alertBox.textContent = `Incident ticket #${inc.id} logged. Safeguards dispatched.`;
-      setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
-    }
+      inputSeat.value = '';
+      textDesc.value = '';
+
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertBox.textContent = `Incident ticket #${inc.id} logged. Safeguards dispatched.`;
+        setTimeout(() => { alertBox.style.display = 'none'; }, 6000);
+      }
+      this.setLoadingState('btn-incident-submit', false, 'File Incident Ticket');
+    }, 500);
   }
 
   handleOperatorCreateMatch() {
@@ -1102,23 +1146,28 @@ class ArenaFlowController {
       return;
     }
 
-    window.Store.addMatch({
-      sport,
-      tournament,
-      venue,
-      time,
-      date: new Date().toISOString().split('T')[0],
-      status: 'SCHEDULED',
-      teamA: { name: teamAName, score: 0, color: teamAColor.value },
-      teamB: { name: teamBName, score: 0, color: teamBColor.value }
-    });
+    this.setLoadingState('btn-schedule-submit', true, 'Schedule Match', 'Scheduling...');
 
-    sportInput.value = '';
-    tourInput.value = '';
-    venueInput.value = '';
-    timeInput.value = '19:30';
-    teamAInput.value = '';
-    teamBInput.value = '';
+    setTimeout(() => {
+      window.Store.addMatch({
+        sport,
+        tournament,
+        venue,
+        time,
+        date: new Date().toISOString().split('T')[0],
+        status: 'SCHEDULED',
+        teamA: { name: teamAName, score: 0, color: teamAColor.value },
+        teamB: { name: teamBName, score: 0, color: teamBColor.value }
+      });
+
+      sportInput.value = '';
+      tourInput.value = '';
+      venueInput.value = '';
+      timeInput.value = '19:30';
+      teamAInput.value = '';
+      teamBInput.value = '';
+      this.setLoadingState('btn-schedule-submit', false, 'Schedule Match');
+    }, 500);
   }
 
   // --- Accessibility Voice Synthesis ---

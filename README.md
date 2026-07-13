@@ -4,8 +4,9 @@
 [![GenAI Assistant](https://img.shields.io/badge/GenAI-Aura_AI_Assistant-10b981?style=flat-square)](#)
 [![Security Policy](https://img.shields.io/badge/Security-Audit_Chained_&_Sanitized-blueviolet?style=flat-square)](#)
 [![Diagnostics status](https://img.shields.io/badge/System_Diagnostics-100%25_Healthy-10b981?style=flat-square)](#)
+[![PWA Ready](https://img.shields.io/badge/PWA-Installation_Manifest-10b981?style=flat-square)](#)
 
-**ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations command dashboard and fan services simulator designed for the **FIFA World Cup 2026™** at MetLife Stadium. The system coordinates tournament game status, concession workflows, and fan safety through dynamic path routing and interactive AI assistance.
+**ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations command dashboard and fan services simulator designed for the **FIFA World Cup 2026™** at MetLife Stadium. The system coordinates tournament game status, concession workflows, and fan safety through dynamic path routing, interactive AI assistance, and cryptographic log chains.
 
 ---
 
@@ -17,8 +18,11 @@ The project follows a modular, production-standard structure separating HTML vie
 .
 ├── 404.html                 # Custom 404 error page (sports/stadium themed)
 ├── index.html               # Main entry page (contains Hero, live stats, widgets)
+├── manifest.json            # PWA installation manifest configuration
 ├── README.md                # Documentation & pairing statement
 └── src/                     # Source Assets
+    ├── assets/
+    │   └── preview.png      # High-fidelity dashboard card preview mockup image
     ├── css/
     │   └── styles.css       # Core typography variables and responsive grid layouts
     └── js/
@@ -64,13 +68,14 @@ graph TD
 - **Fan Mode**: Fans chat in plain English to request routing ("directions from Block 102 to Gate C"), translate alerts ("translate Spanish"), order food, or report safety issues. Aura AI parses the intent, triggers the corresponding system operations, and responds.
 - **TOC Operations Mode**: Authenticated coordinators query stadium metrics, check gate capacities, or schedule matches directly via conversational commands.
 
-### 2. Live Analytics Dashboard
-- Dynamic top-level dashboard tracks active metric counters:
-  - **Stadium Occupancy**: Preloaded gate density tracker.
-  - **Security Alerts**: Synced with active, unresolved incident tickets.
-  - **Active Routes**: Counts computed paths.
-  - **Orders Queued**: Synced with unprocessed concessions.
-  - **Fans Checked & AI Model Confidence** ratings.
+### 2. Live Analytics Telemetry Dashboard
+- Dynamic top-level dashboard tracks active metric counters synced directly to state:
+  - **Stadium Occupancy**: Computes the percentage of current gate attendance to overall capacities in real-time.
+  - **Security Alerts**: Tracks unresolved safety dispatch reports.
+  - **Routes Computed**: Increments dynamically as users request path calculations.
+  - **Orders Queued**: Shows concession queue sizes.
+  - **Ticket Scans**: Increments as fans scan barcodes.
+  - **Log Integrity**: Performs a real-time cryptographic audit-trail verification (`verifyChain()`), instantly flagging `Chain Fault!` if storage is altered.
 
 ### 3. Smart Stadium Pathfinding (IoT Rerouting)
 - Models the stadium entrance, concourses, lifts, and seating blocks as a graph.
@@ -106,7 +111,7 @@ graph TD
 | **Testing** | 14+ built-in browser tests covering NLU, routing, authorization, rate limiting, and hash chain checks. |
 | **Accessibility**| WCAG 2.1 AA compliant, High Contrast theme, Keyboard tab-stops, and Web Speech TTS voice directions. |
 | **Responsiveness**| Fluid grid layouts, media query breakpoints, zero horizontal scrolls on screen sizes 320px–1440px. |
-| **Documentation**| Structured README, installation details, folder mapping, license specifications, and future items. |
+| **Documentation**| Structured README, PWA manifest, installation details, folder mapping, license specifications, and future items. |
 
 ---
 

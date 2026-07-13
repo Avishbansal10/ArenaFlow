@@ -260,6 +260,13 @@ class ArenaFlowController {
     this.renderAuthOverlay();
 
     window.Security.AuditLogger.log('SYSTEM_STARTUP', 'FIFA System Kernel', 'SUCCESS', 'ArenaFlow Pro dashboard fully activated.');
+
+    // Fade out initial page loader overlay (Separation of concerns: removes inline script tags)
+    const loader = document.getElementById('initial-page-loader');
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.style.display = 'none', 500);
+    }
   }
 
   bindEvents() {

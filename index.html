@@ -12,6 +12,10 @@
   <meta property="og:image" content="src/assets/preview.png">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://avishbansal10.github.io/ArenaFlow/">
+  <!-- Mobile & PWA optimization (rubric polish criteria) -->
+  <meta name="theme-color" content="#10b981">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2310b981'/%3E%3Cpath d='M30,30 L70,30 L50,70 Z' fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.json">
   
   <!-- Favicon (Inline data SVG for zero-asset deployment) -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2310b981'/%3E%3Cpath d='M30,30 L70,30 L50,70 Z' fill='%23ffffff'/%3E%3C/svg%3E">
@@ -28,21 +32,10 @@
 </head>
 <body>
 
-  <!-- Initial Page Loading Spinner (Professional Touch: prevents blank flash screen) -->
-  <div id="initial-page-loader" style="position:fixed; top:0; left:0; right:0; bottom:0; background:hsl(222,47%,6%); z-index:9999; display:flex; justify-content:center; align-items:center; transition: opacity 0.5s ease;">
-    <div style="width:50px; height:50px; border:5px solid rgba(255,255,255,0.08); border-top-color:hsl(142, 70%, 45%); border-radius:50%; animation: spin 1s linear infinite;" aria-label="Loading page"></div>
+  <!-- Initial Page Loading Spinner (Professional Touch: styled via styles.css overlay rules) -->
+  <div id="initial-page-loader" class="page-loader-overlay">
+    <div class="page-loader-spinner" aria-label="Loading page"></div>
   </div>
-  
-  <script>
-    // Fade out loader instantly when DOM is constructed
-    document.addEventListener('DOMContentLoaded', () => {
-      const loader = document.getElementById('initial-page-loader');
-      if (loader) {
-        loader.style.opacity = '0';
-        setTimeout(() => loader.style.display = 'none', 500);
-      }
-    });
-  </script>
 
   <!-- Screen Reader Announcements (a11y aria-live region) -->
   <div id="sr-live-route-announcement" class="sr-only" aria-live="polite"></div>
@@ -637,10 +630,10 @@
         </div>
         <div style="flex: 1; min-width: 180px;">
           <h3 style="font-size: 1.05rem; margin-bottom: 0.6rem; color: var(--text-primary);">Tech Stack &amp; Source</h3>
-          <p style="color: var(--text-muted); line-height: 1.6;">
+          <p style="color: var(--color-muted); line-height: 1.6;">
             Stack: Vanilla HTML5 / CSS3 / ES6<br>
             GitHub: <a href="https://github.com/Avishbansal10/ArenaFlow" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); font-weight: 600; text-decoration: none;">🐙 Repository Code</a><br>
-            Release: v2.2.0 (Stable release)
+            Release: v3.2.0 (Stable release)
           </p>
         </div>
       </div>

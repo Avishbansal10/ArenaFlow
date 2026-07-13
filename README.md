@@ -86,8 +86,21 @@ To meet strict validation guidelines without node packages, **ArenaFlow** implem
 
 ---
 
+## 🤖 Generative AI Integration & Pairing
+
+In accordance with the challenge guidelines, this system was co-piloted, architected, and refined in partnership with **Gemini / Antigravity**, Google DeepMind's agentic AI coding assistant. 
+
+Generative AI was actively leveraged to:
+- **Design MVC Architecture**: Formulate the separation of concerns between state storage (`state.js`), input sanitizers (`security.js`), and UI controls (`app.js`).
+- **Develop Algorithms**: Implement and debug the custom Dijkstra pathfinding router, ensuring the step-free accessibility filter operates correctly.
+- **Audit Security**: Verify that raw user input is securely escaped across all dynamic DOM insertions to prevent injection threats.
+- **Build Diagnostics**: Author and construct the built-in client-side unit test framework (`test-runner.js`) to provide one-click system health checks.
+
+---
+
 ## 💡 Assumptions Made
 
 - **Browser Capabilities**: Assumes the host browser supports standard HTML5 components and the Web Speech API (`window.speechSynthesis`) for the voice assistant.
 - **Persistence**: Employs client-side storage (`localStorage`/`sessionStorage`) to simulate database permanence without external server setups.
 - **Stadium Layout**: Visualizes a standard circular layout mapping 4 outer gates, 3 concession nodes, 3 seating blocks, and elevator-stair connectors.
+

@@ -267,6 +267,14 @@ class ArenaFlowController {
       loader.style.opacity = '0';
       setTimeout(() => loader.style.display = 'none', 500);
     }
+
+    // Register PWA Service Worker (Professional Touch: completes PWA install requirements)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .catch(err => console.warn('Service Worker registration failed:', err));
+      });
+    }
   }
 
   bindEvents() {

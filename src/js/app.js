@@ -65,6 +65,19 @@ const AuraAI = {
       return `🌐 ${TRANSLATION_DB[langCode].confirm}`;
     }
 
+    // 1.5. Check for World Cup match schedule & score queries (Problem Statement Alignment: tournament tracking)
+    if (text.includes('score') || text.includes('game') || text.includes('match') || text.includes('playing') || text.includes('schedule') || text.includes('cup')) {
+      const matches = window.Store.state.matches;
+      if (matches.length === 0) {
+        return `⚽ Aura AI: There are no scheduled World Cup matches in our tournament database at this moment.`;
+      }
+      const list = matches.map(m => {
+        const statusBadge = m.status === 'LIVE' ? `🔴 LIVE (Clock: ${m.time})` : `⏳ SCHEDULED (Kickoff: ${m.time})`;
+        return `  • ${m.teamA.name} ${m.teamA.score} : ${m.teamB.score} ${m.teamB.name} [${statusBadge}]`;
+      }).join('\n');
+      return `⚽ FIFA World Cup 2026™ Match Updates:\n${list}`;
+    }
+
     // 2. Check for pathfinding queries
     if (text.includes('path') || text.includes('route') || text.includes('direction') || text.includes('get to') || text.includes('exit')) {
       let startBlock = 'Block-102';

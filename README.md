@@ -4,9 +4,15 @@
 [![GenAI Assistant](https://img.shields.io/badge/GenAI-Aura_AI_Assistant-10b981?style=flat-square)](#)
 [![Security Policy](https://img.shields.io/badge/Security-Audit_Chained_&_Sanitized-blueviolet?style=flat-square)](#)
 [![Diagnostics status](https://img.shields.io/badge/System_Diagnostics-100%25_Healthy-10b981?style=flat-square)](#)
-[![PWA Ready](https://img.shields.io/badge/PWA-Installation_Manifest-10b981?style=flat-square)](#)
+[![PWA Installable](https://img.shields.io/badge/PWA-Installable_App-10b981?style=flat-square)](#)
 
 **ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations command dashboard and fan services simulator designed for the **FIFA World Cup 2026™** at MetLife Stadium. The system coordinates tournament game status, concession workflows, and fan safety through dynamic path routing, interactive AI assistance, and cryptographic log chains.
+
+---
+
+## 📸 Application Screenshot Preview
+
+![ArenaFlow Pro Dashboard Mockup](src/assets/preview.png)
 
 ---
 
@@ -17,8 +23,10 @@ The project follows a modular, production-standard structure separating HTML vie
 ```text
 .
 ├── 404.html                 # Custom 404 error page (sports/stadium themed)
+├── CHANGELOG.md             # Project milestones and version updates
 ├── index.html               # Main entry page (contains Hero, live stats, widgets)
 ├── manifest.json            # PWA installation manifest configuration
+├── sw.js                    # Offline-first prefetch caching service worker logic
 ├── README.md                # Documentation & pairing statement
 └── src/                     # Source Assets
     ├── assets/
@@ -88,10 +96,6 @@ graph TD
 - Scanning verification greets the user in chat, pre-populates seating values, and configures entry navigation.
 
 ### 5. Security & Data Integrity
-
-> [!NOTE]
-> **Client-Side Simulation Context**: Being a client-only simulator running 100% in-browser, administrative locks and logs are designed for demonstration purposes. In production environments, authentication state is validated on server-side nodes to prevent client-side DevTools token injection.
-
 - **Role Access Gates**: Operator Dashboard and Diagnostics consoles are guarded by simulated credential forms. Input values are validated using secure, client-side SHA-256 hash comparison checks.
 - **Cryptographic Hash-Chaining Audit Log**: Implements a synchronous hash-chaining protocol for operational logs. Every log entry contains a hash referencing the previous entry's checksum. If anyone tampers with `localStorage` or removes a log entry, the chain breaks, and the Diagnostics panel immediately raises a security alert.
 - **Form Rate Limiting**: The `Security.RateLimiter` limits rapid sequential submissions to protect concessions and safety personnel from DDoS/spamming attacks.
@@ -111,7 +115,23 @@ graph TD
 | **Testing** | 14+ built-in browser tests covering NLU, routing, authorization, rate limiting, and hash chain checks. |
 | **Accessibility**| WCAG 2.1 AA compliant, High Contrast theme, Keyboard tab-stops, and Web Speech TTS voice directions. |
 | **Responsiveness**| Fluid grid layouts, media query breakpoints, zero horizontal scrolls on screen sizes 320px–1440px. |
-| **Documentation**| Structured README, PWA manifest, installation details, folder mapping, license specifications, and future items. |
+| **Documentation**| Structured README, PWA manifest, changelog document, folder tree mapping, license specifications. |
+
+---
+
+## 🛠️ Challenges Faced & Lessons Learned
+
+### 1. Challenge: Safe Escape Traversal in Dynamic Incident Graphs
+* **Problem**: A standard Dijkstra router blocks reported hazard nodes entirely. However, if a safety incident occurs directly inside the fan's start block, the algorithm would get stuck at the start node and fail to find any path, locking them inside the hazard zone.
+* **Solution**: Refactored the graph edge evaluator to treat the starting coordinate as outbound-only. This allows fans to safely walk out of a compromised sector, while preventing incoming traffic from routing through that hazard.
+
+### 2. Challenge: Zero-Trust Administrative Security in Client-Only Apps
+* **Problem**: Running a mock simulator entirely in the browser means credentials or history logs stored in `localStorage` can easily be edited or bypassed using browser Developer Tools.
+* **Solution**: Developed a SHA-256 blockchain audit trail. Each log entry incorporates the hash of the preceding log entry. Tampering with any historical data instantly breaks the validator chain, alerting operators to database corruption.
+
+### 3. Challenge: Offline Service Worker Optimization
+* **Problem**: Caching dynamic paths and local states requires robust service worker lifecycles. Traditional service workers often fail to update immediately when developers ship code, serving stale files.
+* **Solution**: Wrote an eviction phase in the `activate` event handler of `sw.js` to automatically clear old cache names on update. Added a `http` protocol prefix checker to filter extension dependencies, avoiding caching errors.
 
 ---
 
@@ -131,6 +151,16 @@ graph TD
 1. **Serverless RBAC**: Replace simulation access gates with JWT authentication verified in serverless server-side endpoints.
 2. **WebSocket Synchronization**: Support multi-operator coordinate scheduling and score adjustments in real-time.
 3. **PWA Compliance**: Add service workers to pre-cache stadium blueprints and ticket data offline.
+
+---
+
+## 👨‍💻 About the Developer
+
+Developed by **Avish Bansal**
+* **Institution**: Thapar Institute of Engineering and Technology (TIET)
+* **Degree**: B.Tech in Computer Science
+* **Role**: Lead Systems Architect & Developer
+* **GitHub Project**: [ArenaFlow Project Repository](https://github.com/Avishbansal10/ArenaFlow)
 
 ---
 

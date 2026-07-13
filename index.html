@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ArenaFlow — Smart Stadium & Tournament Operations Control</title>
+  <meta name="description" content="A premium, accessible stadium operations hub and fan service portal. Implements algorithmic seat pathfinding, incident ticketing, real-time score keeping, security audit logs, and WCAG-compliant screen reader support.">
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Pre-load dependencies to avoid runtime errors -->
+  <script src="security.js" defer></script>
+  <script src="state.js" defer></script>
+  <script src="test-runner.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+  <!-- Screen Reader Announcements (a11y aria-live region) -->
+  <div id="sr-live-route-announcement" class="sr-only" aria-live="polite"></div>
+
+  <div class="container">
+    <!-- Header Section -->
+    <header>
+      <div class="logo-section">
+        <div class="logo-badge" aria-hidden="true">AF</div>
+        <div class="logo-title">
+          <h1>ArenaFlow</h1>
+          <span>Smart Stadium &amp; Tournament Operations Control</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <button id="btn-toggle-contrast" class="btn-a11y" aria-pressed="false" title="Toggle high contrast colors for accessibility">
+          🌓 Contrast Mode
+        </button>
+        <div class="system-status" aria-label="System status online">
+          <div class="pulse-dot"></div>
+          <span>System Healthy</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Role Selection Tabs -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+      <nav class="role-tabs" aria-label="Dashboard Role Selection">
+        <button class="role-tab active" data-role="fan" role="tab" aria-selected="true">
+          📣 Fan Portal
+        </button>
+        <button class="role-tab" data-role="operator" role="tab" aria-selected="false">
+          💼 Operations Control (TOC)
+        </button>
+        <button class="role-tab" data-role="diagnostics" role="tab" aria-selected="false">
+          🛠️ System Diagnostics
+        </button>
+      </nav>
+      <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">
+        Challenge Vertical: <strong>Smart Stadium &amp; Tournament Operation</strong>
+      </div>
+    </div>
+
+    <!-- 1. FAN VIEW PANEL -->
+    <main id="fan-panel" class="view-panel active" role="tabpanel">
+      <div class="dashboard-grid">
+        
+        <!-- Left Column: Announcements & Live Updates -->
+        <div class="col-6" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- Alert Box -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title"> Stadium Broadcast &amp; Audio Assistant</h2>
+              <button id="btn-tts-read" class="btn btn-secondary" style="font-size:0.75rem; padding: 0.3rem 0.6rem;" aria-label="Read out active stadium alerts">
+                🔊 Listen Alerts
+              </button>
+            </div>
+            <div class="alerts-container" id="announcements-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Matches score card -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🏆 Live Matches Center</h2>
+              <span class="card-subtitle">Real-time tournament updates</span>
+            </div>
+            <div class="matches-list" id="fan-matches-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Concessions ordering -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🍔 Seat-Delivery Concessions</h2>
+              <span class="card-subtitle">Hot food delivered straight to your block</span>
+            </div>
+            <form id="concession-form" style="display: flex; flex-direction: column; gap: 1rem;">
+              <div class="form-group">
+                <label for="order-seat">Your Seating Address</label>
+                <input type="text" id="order-seat" placeholder="e.g. Block 104, Row G, Seat 9" required>
+              </div>
+              <div class="form-group">
+                <label for="order-food">Select Meal/Snack Set</label>
+                <select id="order-food" required>
+                  <option value="" disabled selected>Choose your food combo...</option>
+                  <option value="Double Cheese Burger Meal (Burger, Fries, Drink) - $14">Double Cheese Burger Combo ($14)</option>
+                  <option value="Classic Movie Popcorn &amp; Jumbo Soda Combo - $10">Popcorn &amp; Soda Combo ($10)</option>
+                  <option value="Nachos with Warm Cheese Dip &amp; Soda - $9">Nachos &amp; Cheese Combo ($9)</option>
+                  <option value="Kids Chicken Tenders &amp; Juice Box - $8">Chicken Tenders Meal ($8)</option>
+                </select>
+              </div>
+              <button type="submit" class="btn">Place Order</button>
+              <div id="order-success-alert" class="alert-banner alert-banner-info" style="display:none; padding: 0.6rem 1rem;"></div>
+            </form>
+          </div>
+
+          <!-- Concession Track list -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🛵 Active Order Tracker</h2>
+            </div>
+            <div class="matches-list" id="fan-order-track-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Column: Navigation & Incident Reporting -->
+        <div class="col-6" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- Seat Finder & Pathfinding -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">📍 Accessible Seat Finder</h2>
+              <span class="card-subtitle">Smart routing algorithm with step-free assistance</span>
+            </div>
+            <form id="routing-form" style="display: flex; flex-direction: column; gap: 1rem;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="nav-start-block">Your Seating Block</label>
+                  <select id="nav-start-block" required>
+                    <option value="Block-102">Block 102 (East Side)</option>
+                    <option value="Block-104">Block 104 (South Side)</option>
+                    <option value="Block-212">Block 212 (Upper Tier)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="nav-end-gate">Destination Exit/Gate</label>
+                  <select id="nav-end-gate" required>
+                    <option value="Gate-A">Gate A (North Entrance)</option>
+                    <option value="Gate-B">Gate B (South Entrance)</option>
+                    <option value="Gate-C">Gate C (East Entrance)</option>
+                    <option value="Gate-D">Gate D (West Entrance)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding:0.6rem; border-radius: var(--radius-sm);">
+                <input type="checkbox" id="nav-accessible-toggle" style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="nav-accessible-toggle" style="font-size: 0.85rem; font-weight:600; color: var(--text-secondary); cursor: pointer;">
+                  Step-free Routing (Avoid all staircases; use elevators/lifts only)
+                </label>
+              </div>
+              <button type="submit" class="btn">Calculate Directions</button>
+            </form>
+
+            <!-- TTS Voice assistance trigger box -->
+            <div class="tts-control-box" id="routing-tts-prompt" style="display:none;">
+              <span>🔊 Voice Navigation is available for this route:</span>
+              <button id="btn-tts-read-path" class="btn btn-secondary" style="font-size:0.75rem; padding: 0.3rem 0.6rem;" aria-label="Read directions aloud">
+                Play Audio Directions
+              </button>
+            </div>
+
+            <!-- Path Results Output -->
+            <div style="margin-top: 0.5rem;">
+              <h3 style="font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-secondary);">Calculated Step-by-Step Directions:</h3>
+              <div id="nav-instructions-list" style="display: flex; flex-direction: column;">
+                <p style="font-size:0.85rem; color:var(--text-muted)">Select your seating area and desired exit gate above to generate optimal directions.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fan Incident Form -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🚨 Safety &amp; Assistance Incident Report</h2>
+              <span class="card-subtitle">Anonymously report spills, safety concerns, or medical issues</span>
+            </div>
+            <form id="fan-incident-form" style="display: flex; flex-direction: column; gap: 1rem;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="report-loc">Location / Seat Coordinate</label>
+                  <input type="text" id="report-loc" placeholder="e.g. Block 102" required>
+                </div>
+                <div class="form-group">
+                  <label for="report-type">Incident Type</label>
+                  <select id="report-type" required>
+                    <option value="Spill">Liquid Spill / Clean-up</option>
+                    <option value="Medical">Medical Assistance Needed</option>
+                    <option value="Security">Security Issue / Crowd Hazard</option>
+                    <option value="Maintenance">Maintenance (Broken Seat/Light)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="grid-column: span 2;">
+                  <label for="report-severity">Est. Urgency / Severity</label>
+                  <select id="report-severity" required>
+                    <option value="Low">Low - Operational check</option>
+                    <option value="Medium">Medium - Clear hazard shortly</option>
+                    <option value="High">High - Urgent / Immediate dispatch</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="report-desc">Describe the issue</label>
+                <textarea id="report-desc" rows="3" placeholder="Provide short details to help dispatch staff respond..." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-danger">File Incident Ticket</button>
+              <div id="report-success-alert" class="alert-banner alert-banner-warning" style="display:none; padding: 0.6rem 1rem;"></div>
+            </form>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+
+    <!-- 2. OPERATOR VIEW PANEL -->
+    <main id="operator-panel" class="view-panel" role="tabpanel">
+      <div class="dashboard-grid">
+        
+        <!-- Left Column: Scheduler & Live Score Control -->
+        <div class="col-6" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- Tournament operations -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">📅 Match &amp; Tournament Scheduler</h2>
+              <span class="card-subtitle">Add games to active tournament rotation</span>
+            </div>
+            <form id="operator-scheduler-form" style="display: flex; flex-direction: column; gap: 0.8rem;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sched-sport">Sport Type</label>
+                  <input type="text" id="sched-sport" placeholder="e.g. Basketball" required>
+                </div>
+                <div class="form-group">
+                  <label for="sched-tour">Tournament / League Name</label>
+                  <input type="text" id="sched-tour" placeholder="e.g. Regional Semifinal" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sched-venue">Stadium Venue / Court</label>
+                  <input type="text" id="sched-venue" placeholder="e.g. Center Court" required>
+                </div>
+                <div class="form-group">
+                  <label for="sched-time">Scheduled Kickoff Time</label>
+                  <input type="text" id="sched-time" value="19:30" required>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sched-teama">Team A Name</label>
+                  <input type="text" id="sched-teama" placeholder="Team A" required>
+                  <input type="color" id="sched-teama-color" value="#3b82f6" style="padding:0; width:100%; height:25px; cursor:pointer;" aria-label="Team A Color">
+                </div>
+                <div class="form-group">
+                  <label for="sched-teamb">Team B Name</label>
+                  <input type="text" id="sched-teamb" placeholder="Team B" required>
+                  <input type="color" id="sched-teamb-color" value="#ff4b4b" style="padding:0; width:100%; height:25px; cursor:pointer;" aria-label="Team B Color">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-success" style="margin-top:0.4rem;">Schedule Match</button>
+            </form>
+          </div>
+
+          <!-- Operator Live Matches Management -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🎛️ Live Score &amp; Status Controls</h2>
+              <span class="card-subtitle">Adjust scores and timers for the fan dashboard</span>
+            </div>
+            <div class="matches-list" id="operator-matches-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Concessions Dispatch manager -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">🛵 Seat-Delivery Runner Dispatch</h2>
+              <span class="card-subtitle">Prepare and route concession orders</span>
+            </div>
+            <div class="matches-list" id="operator-orders-list">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Column: Heatmaps, Sensors & Incidents dispatch -->
+        <div class="col-6" style="display: flex; flex-direction: column; gap: 1.5rem;">
+          
+          <!-- Stadium Crowd Sensor Heatmap -->
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">📊 Dynamic Arena Gate Crowd Sensors</h2>
+              <span class="card-subtitle">IoT density map. Click nodes to view status or issue redirection warnings</span>
+            </div>
+            
+            <div class="map-canvas-container">
+              <div class="stadium-map" role="img" aria-label="Stadium gate sensor heatmap layout">
+                <div class="stadium-field">Main Field</div>
+                
+                <!-- Clickable Gate nodes -->
+                <button class="sensor-node node-gate-a" data-sensor-id="gate-a" aria-label="Gate A Status">A</button>
+                <button class="sensor-node node-gate-b alert-moderate" data-sensor-id="gate-b" aria-label="Gate B Status">B</button>
+                <button class="sensor-node node-gate-c alert-critical" data-sensor-id="gate-c" aria-label="Gate C Status">C</button>
+                <button class="sensor-node node-gate-d" data-sensor-id="gate-d" aria-label="Gate D Status">D</button>
+              </div>
+            </div>
+
+            <!-- Heatmap selection detail Box -->
+            <div id="sensor-details">
+              <!-- Populated dynamically -->
+            </div>
+
+            <!-- Concessions wait zones stats -->
+            <div>
+              <h3 style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.5rem;">Food Plaza Waiting Zones status:</h3>
+              <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; font-size:0.75rem;">
+                <div class="sensor-detail-box" style="cursor:pointer;" onclick="AppController.selectedGateSensor = 'zone-1'; AppController.renderHeatmapDetail();">
+                  <strong>Food Plaza</strong><br>Queue: 12m
+                </div>
+                <div class="sensor-detail-box" style="cursor:pointer;" onclick="AppController.selectedGateSensor = 'zone-2'; AppController.renderHeatmapDetail();">
+                  <strong>North Concessions</strong><br>Queue: 3m
+                </div>
+                <div class="sensor-detail-box" style="cursor:pointer;" onclick="AppController.selectedGateSensor = 'zone-3'; AppController.renderHeatmapDetail();">
+                  <strong style="color:var(--color-danger)">South Concessions</strong><br>Queue: 25m
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Incidents Dispatch safety board -->
+          <div class="card" style="grid-column: span 12;">
+            <div class="card-header">
+              <h2 class="card-title">🚨 Incident dispatch &amp; responder tracking</h2>
+              <span class="card-subtitle">Safety issues reported by fans or auto-sensors</span>
+            </div>
+            <div class="incident-table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ticket ID</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Description</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Assigned Responder</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="operator-incidents-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+
+    <!-- 3. SYSTEM DIAGNOSTICS VIEW PANEL -->
+    <main id="diagnostics-panel" class="view-panel" role="tabpanel">
+      <div class="dashboard-grid">
+        
+        <!-- Left: Diagnostic Suite runner -->
+        <div class="col-8">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">⚙️ System Diagnostics &amp; Unit Tests</h2>
+              <span class="card-subtitle">Verify state mutations, XSS sanitizers, and routing algorithms</span>
+            </div>
+            <div style="display:flex; justify-content: space-between; align-items:center;">
+              <p style="font-size:0.85rem;">Run the built-in diagnostic test runner to execute our unit and integration tests instantly in the client.</p>
+              <button id="btn-run-diagnostics" class="btn btn-success">Run Diagnostics</button>
+            </div>
+            <div class="diagnostics-console" id="diagnostics-console-logs" aria-live="polite">
+              <div class="diag-log-line" style="color:var(--text-muted)">Hit 'Run Diagnostics' to execute local assertions...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Security Audit Logs -->
+        <div class="col-4">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">📜 Security Audit Log</h2>
+              <button id="btn-clear-audit-logs" class="btn btn-secondary" style="font-size:0.75rem; padding: 0.25rem 0.5rem;">Clear Logs</button>
+            </div>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.4rem;">Immutable administrative and operational audit trail:</p>
+            <div class="diagnostics-console" id="audit-logs-list" style="background:#0a0e17; height: 350px; color:#93c5fd;">
+              <!-- Renders dynamically -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); text-align: center; font-size: 0.8rem; color: var(--text-muted);">
+      <p>&copy; 2026 ArenaFlow Control Systems. All rights reserved. Designed for Hack2skill Prompt Wars (Smart Stadium Vertical).</p>
+    </footer>
+
+  </div>
+
+</body>
+</html>

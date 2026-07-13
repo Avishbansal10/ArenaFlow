@@ -61,8 +61,8 @@ const TestSuite = {
 
     'Security.AuditLogger hash chain verifies integrity and detects tampering': function() {
       // Clean start
-      const originalLogsJson = localStorage.getItem('arena_flow_audit_logs_v2');
-      localStorage.removeItem('arena_flow_audit_logs_v2');
+      const originalLogsJson = localStorage.getItem('arena_flow_audit_logs_v3');
+      localStorage.removeItem('arena_flow_audit_logs_v3');
       
       // Log some entries
       window.Security.AuditLogger.log('TEST_EVENT_1', 'Tester', 'SUCCESS', 'Check 1');
@@ -75,7 +75,7 @@ const TestSuite = {
       // Tamper with the log data in localStorage
       const logs = window.Security.AuditLogger.getLogs();
       logs[0].details = 'Tampered Check 1'; // alter content
-      localStorage.setItem('arena_flow_audit_logs_v2', JSON.stringify(logs));
+      localStorage.setItem('arena_flow_audit_logs_v3', JSON.stringify(logs));
 
       // Verify chain detects tampering
       const checkTampered = window.Security.AuditLogger.verifyChain();
@@ -83,9 +83,9 @@ const TestSuite = {
 
       // Restore
       if (originalLogsJson) {
-        localStorage.setItem('arena_flow_audit_logs_v2', originalLogsJson);
+        localStorage.setItem('arena_flow_audit_logs_v3', originalLogsJson);
       } else {
-        localStorage.removeItem('arena_flow_audit_logs_v2');
+        localStorage.removeItem('arena_flow_audit_logs_v3');
       }
     },
 

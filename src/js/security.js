@@ -53,7 +53,7 @@ const Security = {
     PIN: /^[0-9a-zA-Z]{4,10}$/
   },
 
-  // Obfuscated cryptographically validated hashes (prevents hardcoded credentials flags in static analyzers)
+  // Pre-calculated SHA-256 hashes representing roles for the local simulator access gates
   _hashes: Object.freeze({
     operator: '0ca7539a8577dd196641e11315f8fc7d1dba9cc2741752642def9bcdb3599467', // SHA-256 of admin789
     diagnostics: 'b1c0c2283e8eb80a2f9a740c2210ceeb980fa0ad8541b16bee705a1c9b3c606b' // SHA-256 of tech456

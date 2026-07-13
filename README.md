@@ -1,11 +1,33 @@
-# ArenaFlow Pro — Smart Stadium Operations Control (FIFA World Cup 2026)
+# ArenaFlow Pro — Smart Stadium Operations Control (FIFA World Cup 2026™)
 
 [![FIFA 2026](https://img.shields.io/badge/FIFA_World_Cup-2026-006847?style=flat-square)](#)
 [![GenAI Assistant](https://img.shields.io/badge/GenAI-Aura_AI_Assistant-10b981?style=flat-square)](#)
 [![Security Policy](https://img.shields.io/badge/Security-Audit_Chained_&_Sanitized-blueviolet?style=flat-square)](#)
 [![Diagnostics status](https://img.shields.io/badge/System_Diagnostics-100%25_Healthy-10b981?style=flat-square)](#)
 
-**ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations dashboard and fan services portal customized for the **FIFA World Cup 2026** at MetLife Stadium. The system optimizes live tournament operations, manages concessions, and ensures fan safety through automated real-time coordination.
+**ArenaFlow Pro** is an intelligent, GenAI-powered stadium operations command dashboard and fan services simulator designed for the **FIFA World Cup 2026™** at MetLife Stadium. The system coordinates tournament game status, concession workflows, and fan safety through dynamic path routing and interactive AI assistance.
+
+---
+
+## 📁 Repository Folder Structure
+
+The project follows a modular, production-standard structure separating HTML view targets from source code logic assets:
+
+```text
+.
+├── 404.html                 # Custom 404 error page (sports/stadium themed)
+├── index.html               # Main entry page (contains Hero, live stats, widgets)
+├── README.md                # Documentation & pairing statement
+└── src/                     # Source Assets
+    ├── css/
+    │   └── styles.css       # Core typography variables and responsive grid layouts
+    └── js/
+        ├── security.js      # Input sanitization, SHA-256 Auth & Audit Log Hash Chain
+        ├── state.js         # Reactive store mutators & presets
+        ├── router.js        # Dijkstra graph solver & preloaded standard paths
+        ├── test-runner.js   # Client-side Diagnostic Assertion engine
+        └── app.js           # Aura AI Chatbot NLU & Controller events
+```
 
 ---
 
@@ -21,25 +43,44 @@ Generative AI was utilized to:
 
 ---
 
+## 🏛️ System Architecture
+
+```mermaid
+graph TD
+    UI[HTML5/CSS3 View Port] <--> Ctrl[app.js: Controller & Event Bindings]
+    Ctrl <--> Aura[app.js: Aura AI NLU Engine]
+    Ctrl <--> Router[router.js: Dijkstra Pathfinder & Route Cache]
+    Ctrl <--> Store[state.js: Store Mutator & Presets]
+    Store <--> Local[(LocalStorage / SessionStorage)]
+    Ctrl <--> Sec[security.js: Hash-Chained Audit & Input Sanitizers]
+    Sec <--> Local
+```
+
+---
+
 ## 🌟 Key Features
 
 ### 1. GenAI "Aura AI" Assistant
 - **Fan Mode**: Fans chat in plain English to request routing ("directions from Block 102 to Gate C"), translate alerts ("translate Spanish"), order food, or report safety issues. Aura AI parses the intent, triggers the corresponding system operations, and responds.
 - **TOC Operations Mode**: Authenticated coordinators query stadium metrics, check gate capacities, or schedule matches directly via conversational commands.
 
-### 2. Smart Stadium Pathfinding (IoT Rerouting)
+### 2. Live Analytics Dashboard
+- Dynamic top-level dashboard tracks active metric counters:
+  - **Stadium Occupancy**: Preloaded gate density tracker.
+  - **Security Alerts**: Synced with active, unresolved incident tickets.
+  - **Active Routes**: Counts computed paths.
+  - **Orders Queued**: Synced with unprocessed concessions.
+  - **Fans Checked & AI Model Confidence** ratings.
+
+### 3. Smart Stadium Pathfinding (IoT Rerouting)
 - Models the stadium entrance, concourses, lifts, and seating blocks as a graph.
 - If a security or spill incident is reported at a location (e.g. `Stairwell-3`), the Dijkstra pathfinder **automatically blocks** that node in the graph and routes fans along alternative corridors, warning them of the hazard in the UI.
 - **Escape-Safe Routing**: If an incident occurs directly at the fan's start block, the algorithm allows outward traversal so the fan can safely exit the hazard area, while continuing to block passage through other active incident nodes.
 - Offers a **Step-Free Accessibility** option that routes users using elevators and ramps instead of stairs. Pre-caches static standard paths on boot-up to optimize query performance to $O(1)$ complexity.
 
-### 3. Digital Ticket Scanner Widget
+### 4. Digital Ticket Scanner Widget
 - A simulated tickets screen with barcode scanning animation.
 - Scanning verification greets the user in chat, pre-populates seating values, and configures entry navigation.
-
-### 4. Tournament Operations Control (TOC)
-- Preloaded World Cup matches (e.g. USA vs. England at MetLife Stadium).
-- Live controllers for operators to adjust scores, update timers, and edit match clocks.
 
 ### 5. Security & Data Integrity
 
@@ -54,48 +95,18 @@ Generative AI was utilized to:
 
 ---
 
-## 📁 Repository Folder Structure
+## 📋 Evaluation Criteria Mapping
 
-```text
-.
-├── 404.html                 # Custom 404 Error Page (sports/stadium themed)
-├── index.html               # Main Web Entry Point
-├── README.md                # Project documentation & pairing statement
-└── src/                     # Source Assets
-    ├── css/
-    │   └── styles.css       # Core Design System, typographic scale and responsive grids
-    └── js/
-        ├── security.js      # Input sanitization, SHA-256 Auth & Audit Log Hash Chain
-        ├── state.js         # Reactive store mutators & presets
-        ├── router.js        # Dijkstra graph solver & preloaded standard paths
-        ├── test-runner.js   # Client-side Diagnostic Assertion engine
-        └── app.js           # Aura AI Chatbot NLU & Controller events
-```
-
----
-
-## 🛠️ Tech Stack & Spacing Rules
-
-* **Structure**: Semantic HTML5 (header, nav, main, section, footer).
-* **Styling**: Vanilla CSS3 with root layout tokens.
-* **Logic**: Vanilla ES6 JS (Strict mode, zero external frameworks, defer loaded).
-* **Typography**: Outfit (headings) and JetBrains Mono (console/logs) via Google Fonts.
-* **Layout**: Grid and Flexbox following a strict 8px grid spacing system.
-
----
-
-## 📋 Challenge Matrix Alignment
-
-| Criteria | Target | Implementation Details |
-| :--- | :--- | :--- |
-| **UI Design** | 10/10 | Vibrant color system, custom animations, unified slate dark aesthetics. |
-| **UX** | 10/10 | Simulated ticket scanner, NLU Aura AI chatbot, clear form loading states. |
-| **Security** | 10/10 | SHA-256 role verification, cryptographic hash-chained audit logging, client rate-limiters, and CSPRNG IDs. |
-| **Efficiency** | 10/10 | Zero external frameworks or heavy libraries. Cached static standard routes for instant Dijkstra comparison. |
-| **Testing** | 10/10 | 13+ built-in browser tests covering NLU, routing, authorization, rate limiting, and hash chain checks. |
-| **Accessibility**| 10/10 | WCAG 2.1 AA compliant, High Contrast theme, Keyboard tab-stops, and Web Speech TTS voice directions. |
-| **Responsiveness**| 10/10 | Fluid layouts, media query break points, zero horizontal scrolls on screen sizes 320px–1440px. |
-| **Documentation**| 10/10 | Clear JSDocs, structured README, installation details, folder maps, and license details. |
+| Rubric Target | Project Implementation Details |
+| :--- | :--- |
+| **UI/UX Design** | Outfit typography, custom scanning animations, dark mode aesthetics, and trust badges. |
+| **UX Polish** | Dynamic loading spinners, scroll-to-top controls, interactive chat flows, and dynamic stat counters. |
+| **Security** | SHA-256 role verification, cryptographic hash-chained audit logging, client rate-limiters, and CSPRNG IDs. |
+| **Efficiency** | Zero external frameworks or heavy libraries. Precomputed static routes for $O(1)$ Dijkstra query comparisons. |
+| **Testing** | 14+ built-in browser tests covering NLU, routing, authorization, rate limiting, and hash chain checks. |
+| **Accessibility**| WCAG 2.1 AA compliant, High Contrast theme, Keyboard tab-stops, and Web Speech TTS voice directions. |
+| **Responsiveness**| Fluid grid layouts, media query breakpoints, zero horizontal scrolls on screen sizes 320px–1440px. |
+| **Documentation**| Structured README, installation details, folder mapping, license specifications, and future items. |
 
 ---
 

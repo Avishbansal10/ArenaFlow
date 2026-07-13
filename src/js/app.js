@@ -540,6 +540,17 @@ class ArenaFlowController {
     
     this.renderChatMessages('fan', state.fanChatHistory);
     this.renderChatMessages('operator', state.operatorChatHistory);
+
+    // Update Live Analytics Counters (Professional Touch: reacts to state mutations)
+    const activeAlertsEl = document.getElementById('stat-active-alerts');
+    const concessionOrdersEl = document.getElementById('stat-concession-orders');
+    
+    if (activeAlertsEl) {
+      activeAlertsEl.textContent = state.incidents.filter(i => i.status !== 'Resolved').length;
+    }
+    if (concessionOrdersEl) {
+      concessionOrdersEl.textContent = state.concessions.filter(o => o.status !== 'Delivered').length;
+    }
   }
 
   renderAuthOverlay() {
@@ -690,6 +701,17 @@ class ArenaFlowController {
     const tableBody = document.getElementById('operator-incidents-table-body');
     if (!tableBody) return;
 
+    if (incidents.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted); font-style:italic;">
+            ✓ All security operations clear. No incidents reported.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
     tableBody.innerHTML = incidents.map(inc => {
       const severityClass = `severity-${inc.severity.toLowerCase()}`;
       const statusClass = `status-${inc.status.toLowerCase()}`;
@@ -750,51 +772,55 @@ class ArenaFlowController {
   renderConcessions(orders) {
     const operatorOrdersList = document.getElementById('operator-orders-list');
     if (operatorOrdersList) {
-      operatorOrdersList.innerHTML = orders.map(ord => {
-        const cleanId = window.Security.sanitizeHtml(ord.id);
-        const cleanSeat = window.Security.sanitizeHtml(ord.seat);
-        const cleanItems = window.Security.sanitizeHtml(ord.items);
-        const cleanRunner = ord.runner ? window.Security.sanitizeHtml(ord.runner) : '<em>Unassigned</em>';
-        const cleanStatus = window.Security.sanitizeHtml(ord.status);
+      if (orders.length === 0) {
+        operatorOrdersList.innerHTML = `<div style="background:rgba(255,255,255,0.01); border:1px dashed var(--border-color); padding:1rem; border-radius:var(--radius-md); text-align:center; color:var(--text-muted); font-size:0.85rem; font-style:italic;">✓ No concession orders in queue.</div>`;
+      } else {
+        operatorOrdersList.innerHTML = orders.map(ord => {
+          const cleanId = window.Security.sanitizeHtml(ord.id);
+          const cleanSeat = window.Security.sanitizeHtml(ord.seat);
+          const cleanItems = window.Security.sanitizeHtml(ord.items);
+          const cleanRunner = ord.runner ? window.Security.sanitizeHtml(ord.runner) : '<em>Unassigned</em>';
+          const cleanStatus = window.Security.sanitizeHtml(ord.status);
 
-        let actionButtons = '';
-        if (ord.status === 'Received') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Preparing" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Prepare order #${cleanId}">Prepare</button>`;
-        } else if (ord.status === 'Preparing') {
-          actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Dispatched" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Dispatch order #${cleanId}">Dispatch</button>`;
-        } else if (ord.status === 'Dispatched') {
-          actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${cleanId}" data-action="Delivered" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Deliver order #${cleanId}">Mark Delivered</button>`;
-        } else {
-          actionButtons = `<span style="color: var(--color-primary); font-weight:700;">✓ Delivered</span>`;
-        }
-
-        return `
-          <div class="match-item" style="border-left: 4px solid var(--color-accent);">
-            <div class="match-meta">
-              <span>Order #${cleanId} - ${cleanSeat}</span>
-              <span class="status-badge" style="background-color:rgba(255,255,255,0.02); color:var(--text-primary);">${cleanStatus}</span>
-            </div>
-            <div style="font-weight:600; font-size:0.85rem; padding: 0.2rem 0;">${cleanItems}</div>
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
-              <span>Runner: ${cleanRunner}</span>
-              <div>${actionButtons}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      operatorOrdersList.querySelectorAll('.btn-order-action').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          const ordId = e.target.getAttribute('data-order-id');
-          const nextAction = e.target.getAttribute('data-action');
-          let runnerName = '';
-          if (nextAction === 'Dispatched') {
-            runnerName = prompt('Enter delivery staff name:');
-            if (!runnerName || !runnerName.trim()) return;
+          let actionButtons = '';
+          if (ord.status === 'Received') {
+            actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Preparing" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Prepare order #${cleanId}">Prepare</button>`;
+          } else if (ord.status === 'Preparing') {
+            actionButtons = `<button class="btn btn-secondary btn-order-action" data-order-id="${cleanId}" data-action="Dispatched" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Dispatch order #${cleanId}">Dispatch</button>`;
+          } else if (ord.status === 'Dispatched') {
+            actionButtons = `<button class="btn btn-success btn-order-action" data-order-id="${cleanId}" data-action="Delivered" style="padding:0.25rem 0.5rem; font-size:0.75rem;" aria-label="Deliver order #${cleanId}">Mark Delivered</button>`;
+          } else {
+            actionButtons = `<span style="color: var(--color-primary); font-weight:700;">✓ Delivered</span>`;
           }
-          window.Store.updateOrderStatus(ordId, nextAction, runnerName);
+
+          return `
+            <div class="match-item" style="border-left: 4px solid var(--color-accent);">
+              <div class="match-meta">
+                <span>Order #${cleanId} - ${cleanSeat}</span>
+                <span class="status-badge" style="background-color:rgba(255,255,255,0.02); color:var(--text-primary);">${cleanStatus}</span>
+              </div>
+              <div style="font-weight:600; font-size:0.85rem; padding: 0.2rem 0;">${cleanItems}</div>
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                <span>Runner: ${cleanRunner}</span>
+                <div>${actionButtons}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        operatorOrdersList.querySelectorAll('.btn-order-action').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const ordId = e.target.getAttribute('data-order-id');
+            const nextAction = e.target.getAttribute('data-action');
+            let runnerName = '';
+            if (nextAction === 'Dispatched') {
+              runnerName = prompt('Enter delivery staff name:');
+              if (!runnerName || !runnerName.trim()) return;
+            }
+            window.Store.updateOrderStatus(ordId, nextAction, runnerName);
+          });
         });
-      });
+      }
     }
 
     const fanOrderTrackList = document.getElementById('fan-order-track-list');
@@ -803,7 +829,11 @@ class ArenaFlowController {
       const myOrders = orders.filter(o => o.seat === mySeat);
       
       if (myOrders.length === 0) {
-        fanOrderTrackList.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted)">No active food orders placed from this session.</p>`;
+        fanOrderTrackList.innerHTML = `
+          <div style="background:rgba(255,255,255,0.01); border:1px dashed var(--border-color); padding:1rem; border-radius:var(--radius-md); text-align:center; color:var(--text-muted); font-size:0.85rem; font-style:italic;">
+            🍔 No active food orders placed from this session.
+          </div>
+        `;
       } else {
         fanOrderTrackList.innerHTML = myOrders.map(ord => {
           let progressPercent = 10;
@@ -833,7 +863,11 @@ class ArenaFlowController {
     if (!list) return;
 
     if (announcements.length === 0) {
-      list.innerHTML = `<p style="font-size: 0.8rem; color: var(--text-muted)">No active announcements.</p>`;
+      list.innerHTML = `
+        <div class="alert-banner" style="background:rgba(16,185,129,0.04); border:1px solid rgba(16,185,129,0.2); border-left:4px solid var(--color-primary); color:var(--text-primary); padding:0.75rem 1rem; border-radius:var(--radius-md); font-size:0.85rem; font-weight:600;" role="alert">
+          ✓ Stadium operating normally. No active safety alerts.
+        </div>
+      `;
       return;
     }
 
